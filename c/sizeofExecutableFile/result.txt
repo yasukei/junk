@@ -1,0 +1,9 @@
+-rwxrwxr-x 1 ubuntu ubuntu  8362 Sep 19 00:15 junk_onBss
+-rwxrwxr-x 1 ubuntu ubuntu 12403 Sep 19 00:15 junk_onData
+-rwxrwxr-x 1 ubuntu ubuntu  8334 Sep 19 00:15 junk_onStack
+-rwxrwxr-x 1 ubuntu ubuntu  8331 Sep 19 00:15 junk_void
+   text	   data	    bss	    dec	    hex	filename
+   1076	    496	   4032	   5604	   15e4	junk_onBss
+   1076	   4512	     16	   5604	   15e4	junk_onData
+   1092	    496	     16	   1604	    644	junk_onStack
+   1076	    496	     16	   1588	    634	junk_void
