@@ -1,4 +1,4 @@
-TARGET=signal
+TARGET=behavior
 
 all: $(TARGET)
 
