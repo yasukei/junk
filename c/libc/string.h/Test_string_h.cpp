@@ -17,7 +17,9 @@ using std::tuple;
 // void *memcpy(void *dst, const void *src, size_t n);
 // copies n bytes between two memory areas; if there is overlap, the behavior is undefined
 // ------------------------------------------------------------------
-class memcpy_test : public ::testing::Test
+class memcpy_test : public ::testing::TestWithParam<
+			tuple< vector<char>, vector<char>, size_t, vector<char> >
+		>
 { 
 	protected:
 		virtual void SetUp()
@@ -28,15 +30,7 @@ class memcpy_test : public ::testing::Test
 		}
 };
 
-class memcpy_test_parameterized
-	: public memcpy_test,
-		public ::testing::WithParamInterface<
-			tuple< vector<char>, vector<char>, size_t, vector<char> >
-		>
-{ 
-};
-
-TEST_P(memcpy_test_parameterized, invalid_arguments)
+TEST_P(memcpy_test, basic)
 {
 	// prepare
 	vector<char>	dst		= std::get<0>(GetParam());
@@ -54,8 +48,8 @@ TEST_P(memcpy_test_parameterized, invalid_arguments)
 }
 
 INSTANTIATE_TEST_CASE_P(
-	memcpy_test_parameterized_instance,
-	memcpy_test_parameterized,
+	parameterized_instance,
+	memcpy_test,
 	testing::Values(
 		make_tuple(
 			vector<char> {0xF, 0xF, 0xF},	// dst
