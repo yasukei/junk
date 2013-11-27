@@ -1,99 +1,88 @@
-// reference: http://en.wikibooks.org/wiki/C_Programming/C_Reference/string.h
-
-#include <stdio.h>
-#include <stdarg.h>
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
+// ------------------------------------------------------------------
+// reference:
+//  http://en.wikibooks.org/wiki/C_Programming/C_Reference/string.h
+// ------------------------------------------------------------------
 
 extern "C"
 {
 #include <string.h>
 }
 
-// void *memcpy(void *dest, const void *src, size_t n);
+#include <tuple>
+#include "gtest/gtest.h"
+using std::vector;
+using std::tuple;
+
+// ------------------------------------------------------------------
+// void *memcpy(void *dst, const void *src, size_t n);
 // copies n bytes between two memory areas; if there is overlap, the behavior is undefined
+// ------------------------------------------------------------------
 class memcpy_test : public ::testing::Test
 { 
 	protected:
 		virtual void SetUp()
 		{
-			src = NULL;
-			dst = NULL;
-			size = 0;
 		}
 		virtual void TearDown()
 		{
 		}
-
-		char* src;
-		char* dst;
-		size_t size;
-		void* ret;
-
-		char c1[8], c2[8];
-		int i1, i2;
 };
 
-// TODO: want to arrange these tests as parameterized tests
-TEST_F(memcpy_test, invalid_arguments_001)
+class memcpy_test_parameterized
+	: public memcpy_test,
+		public ::testing::WithParamInterface<
+			tuple< vector<char>, vector<char>, size_t, vector<char> >
+		>
+{ 
+};
+
+TEST_P(memcpy_test_parameterized, invalid_arguments)
 {
 	// prepare
-	src = NULL;
-	dst = NULL;
-	size = 0;
+	vector<char>	dst		= std::get<0>(GetParam());
+	vector<char>	src		= std::get<1>(GetParam());
+	size_t			size	= std::get<2>(GetParam());
+	vector<char>	expect	= std::get<3>(GetParam());
+	void* ret;
 
 	// target
-	ret = memcpy(dst, src, size);
+	ret = memcpy(&dst[1], &src[0], size);
 
 	// check
-	EXPECT_EQ(dst, ret);
+	EXPECT_EQ(&dst[1], ret);
+	EXPECT_EQ(expect, dst);
 }
 
-TEST_F(memcpy_test, invalid_arguments_002)
-{
-	// prepare
-	src = c1;
-	dst = NULL;
-	size = 0;
-
-	// target
-	ret = memcpy(dst, src, size);
-
-	// check
-	EXPECT_EQ(dst, ret);
-}
-
-TEST_F(memcpy_test, invalid_arguments_003)
-{
-	// prepare
-	src = c1;
-	dst = c2;
-	size = 0;
-
-	// target
-	ret = memcpy(dst, src, size);
-
-	// check
-	EXPECT_EQ(dst, ret);
-}
-
-TEST_F(memcpy_test, invalid_arguments_004)
-{
-	// prepare
-	src = c1;
-	dst = c2;
-	size = 2;
-
-	// target
-	ret = memcpy(dst, src, size);
-
-	// check
-	EXPECT_EQ(dst, ret);
-	for(int i = 0; i < size; i++)
-	{
-		EXPECT_EQ(src[i], dst[i]);
-	}
-}
+INSTANTIATE_TEST_CASE_P(
+	memcpy_test_parameterized_instance,
+	memcpy_test_parameterized,
+	testing::Values(
+		make_tuple(
+			vector<char> {0xF, 0xF, 0xF},	// dst
+			vector<char> {0x0},				// src
+			size_t(0),						// size
+			vector<char> {0xF, 0xF, 0xF}	// expect
+		),
+		make_tuple(
+			vector<char> {0xF, 0xF, 0xF},
+			vector<char> {0x0},
+			size_t(1),
+			vector<char> {0xF, 0x0, 0xF}
+		),
+		make_tuple(
+			vector<char> {0xF, 0xF, 0xF, 0xF},
+			vector<char> {0x0, 0x1},
+			size_t(2),
+			vector<char> {0xF, 0x0, 0x1, 0xF}
+		),
+		make_tuple(
+			vector<char> {0xF, 0xF, 0xF, 0xF, 0xF},
+			vector<char> {0x0, 0x1, 0x2},
+			size_t(3),
+			vector<char> {0xF, 0x0, 0x1, 0x2, 0xF}
+		)
+	)
+);
 
 //// copies n bytes between two memory areas; unlike with memcpy the areas may overlap
 //void *memmove(void *dest, const void *src, size_t n);

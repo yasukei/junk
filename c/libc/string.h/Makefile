@@ -9,7 +9,8 @@ INCLUDE_DIRS = \
 	.
 
 CPPFLAGS += -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include -I$(INCLUDE_DIRS)
-CXXFLAGS += -g -Wall -Wextra
+CXXFLAGS += -g -Wall -Wextra -std=c++11
+#CFLAGS += -g -Wall -Wextra
 
 # targets.
 
@@ -30,8 +31,8 @@ $(TEST_TARGET) : gmock_main.a $(TEST_OBJS) $(SRC_OBJS)
 %.o : %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
-%.o : %.c
-	$(CC) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+#%.o : %.c
+#	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 include gtestgmock.mk
 
