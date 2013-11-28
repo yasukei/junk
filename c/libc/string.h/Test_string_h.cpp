@@ -196,7 +196,7 @@ class memchr_test : public ::testing::TestWithParam<
 		static vector<unsigned char> s;
 };
 
-vector<unsigned char> memchr_test::s = vector<unsigned char> {0x0, 0xF, 0xA, 0x5};
+vector<unsigned char> memchr_test::s = vector<unsigned char> {0x0, 0xF, 0xA, 0x5, 0x0, 0xF};
 
 TEST_P(memchr_test, _)
 {
@@ -272,6 +272,18 @@ INSTANTIATE_TEST_CASE_P(
 			(unsigned char)0x5,
 			(size_t)3,
 			(void*)NULL
+		),
+
+		// return the first occurrence
+		std::make_tuple(
+			(unsigned char)0x0,
+			(size_t)6,
+			(void*)&memchr_test::s[0]
+		),
+		std::make_tuple(
+			(unsigned char)0xF,
+			(size_t)6,
+			(void*)&memchr_test::s[1]
 		)
 	)
 );
