@@ -31,7 +31,7 @@ class memcpy_test : public ::testing::TestWithParam<
 { 
 };
 
-TEST_P(memcpy_test, test)
+TEST_P(memcpy_test, _)
 {
 	vector<char>	dst		= std::get<0>(GetParam());
 	vector<char>	src		= std::get<1>(GetParam());
@@ -188,6 +188,93 @@ INSTANTIATE_TEST_CASE_P(
 // void *memchr(const void *s, int c, size_t n);
 // returns a pointer to the first occurrence of c in the first n bytes of s, or NULL if not found
 // ------------------------------------------------------------------
+class memchr_test : public ::testing::TestWithParam<
+			tuple< unsigned char, size_t, void* >
+		>
+{ 
+	public:
+		static vector<unsigned char> s;
+};
+
+vector<unsigned char> memchr_test::s = vector<unsigned char> {0x0, 0xF, 0xA, 0x5};
+
+TEST_P(memchr_test, _)
+{
+	unsigned char	c	= std::get<0>(GetParam());
+	size_t			n	= std::get<1>(GetParam());
+	void*		expect	= std::get<2>(GetParam());
+	void* ret;
+
+	// target
+	ret = memchr(&memchr_test::s[0], c, n);
+
+	// check
+	EXPECT_EQ(expect, ret);
+}
+
+INSTANTIATE_TEST_CASE_P(
+	parameterized_instance,
+	memchr_test,
+	testing::Values(
+		// n = 0
+		std::make_tuple(
+			(unsigned char)0x0,			// c
+			(size_t)0,					// n
+			(void*)NULL					// expect
+		),
+
+		// n = 1
+		std::make_tuple(
+			(unsigned char)0x0,
+			(size_t)1,
+			(void*)&memchr_test::s[0]
+		),
+		std::make_tuple(
+			(unsigned char)0xF,
+			(size_t)1,
+			(void*)NULL
+		),
+
+		// n = 2
+		std::make_tuple(
+			(unsigned char)0x0,
+			(size_t)2,
+			(void*)&memchr_test::s[0]
+		),
+		std::make_tuple(
+			(unsigned char)0xF,
+			(size_t)2,
+			(void*)&memchr_test::s[1]
+		),
+		std::make_tuple(
+			(unsigned char)0xA,
+			(size_t)2,
+			(void*)NULL
+		),
+
+		// n = 3
+		std::make_tuple(
+			(unsigned char)0x0,
+			(size_t)3,
+			(void*)&memchr_test::s[0]
+		),
+		std::make_tuple(
+			(unsigned char)0xF,
+			(size_t)3,
+			(void*)&memchr_test::s[1]
+		),
+		std::make_tuple(
+			(unsigned char)0xA,
+			(size_t)3,
+			(void*)&memchr_test::s[2]
+		),
+		std::make_tuple(
+			(unsigned char)0x5,
+			(size_t)3,
+			(void*)NULL
+		)
+	)
+);
 
 // ------------------------------------------------------------------
 // int memcmp(const void *s1, const void *s2, size_t n);
