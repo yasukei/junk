@@ -16,6 +16,7 @@ enum eAsyncCommClientAddressFamily
 enum eAsyncCommClientResult
 {
 	eAsyncCommClientResult_success,
+	eAsyncCommClientResult_unexpectedError,
 };
 
 // ------------------------------------------------------------------
@@ -27,12 +28,19 @@ typedef struct AsyncCommClient AsyncCommClient;
 // ------------------------------------------------------------------
 // AsyncCommClientCallbacks I/F
 // ------------------------------------------------------------------
-typedef void (*AsyncCommClientNormalCallback)(int result);
+typedef void (*AsyncCommClientNormalCallback)(
+			void* context,
+			uint32_t sendId,
+			unsigned char* receiveData,
+			size_t sizeofReceiveData,
+			int result
+			);
 
 AsyncCommClientCallbacks* AsyncCommClientCallbacks_create(void);
 void AsyncCommClientCallbacks_setNormalCallback(
 	AsyncCommClientCallbacks* self,
-	AsyncCommClientNormalCallback callback
+	AsyncCommClientNormalCallback callback,
+	void* context
 	);
 void AsyncCommClientCallbacks_delete(AsyncCommClientCallbacks* self);
 
