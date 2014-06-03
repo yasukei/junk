@@ -1,14 +1,18 @@
-extern "C"
-{
-#include "AsyncCommClient.h"
+//extern "C"
+//{
+//#include "AsyncCommClient.h"
+//#include "private.h"
+//}
+#include "AsyncCommClient.hpp"
 #include "private.h"
-}
 
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <errno.h>
 
 #include <pthread.h>
 
@@ -71,7 +75,7 @@ class TestServer
 		bool connected;
 
 		bool stopRequested;
-		const long pollingPeriodMicroSec = 100;
+		static const long pollingPeriodMicroSec = 100;
 
 		void lock(void)
 		{
@@ -281,7 +285,7 @@ static void* __TestServer_run(void* arg)
 class Test_AsyncCommClientCallbacks_create : public ::testing::Test
 { 
 	protected:
-		AsyncCommClientCallbacks* self;
+		ACCCallbacks* callbacks;
 };
 
 // ------------------------------------------------------------------
@@ -290,50 +294,10 @@ TEST_F(Test_AsyncCommClientCallbacks_create, success)
 	// precondition
 
 	// target
-	self = AsyncCommClientCallbacks_create();
+	callbacks = ACCCallbacks::create();
 
 	// postcondition
-	EXPECT_NE((AsyncCommClientCallbacks*)NULL, self);
-}
-
-// ------------------------------------------------------------------
-// Test_AsyncCommClientCallbacks_delete
-// ------------------------------------------------------------------
-class Test_AsyncCommClientCallbacks_delete : public Test_AsyncCommClientCallbacks_create
-{ 
-};
-
-// ------------------------------------------------------------------
-TEST_F(Test_AsyncCommClientCallbacks_delete, self_is_not_null)
-{
-	// precondition
-	self = AsyncCommClientCallbacks_create();
-	ASSERT_NE((AsyncCommClientCallbacks*)NULL, self);
-
-	// target
-	AsyncCommClientCallbacks_delete(self);
-
-	// postcondition
-	SUCCEED();
-}
-
-// ------------------------------------------------------------------
-// Test_AsyncCommClient_publicIF_null_check
-// ------------------------------------------------------------------
-TEST(Test_AsyncCommClient, publicIF_null_check)
-{
-	// precondition
-	AsyncCommClient*			acc = NULL;
-	AsyncCommClientCallbacks*	callbacks = NULL;
-
-	// target & postcondition
-	EXPECT_FALSE(AsyncCommClient_connectServer(acc, 0, NULL, 0, NULL));
-	EXPECT_FALSE(AsyncCommClient_send(acc, NULL, NULL, 0, NULL));
-	EXPECT_FALSE(AsyncCommClient_cancel(acc, NULL));
-	AsyncCommClient_delete(acc);
-	AsyncCommClientCallbacks_setNormalCallback(callbacks, NULL, NULL);
-	AsyncCommClientCallbacks_delete(callbacks);
-	SUCCEED();
+	EXPECT_NE((ACCCallbacks*)NULL, callbacks);
 }
 
 // ------------------------------------------------------------------
@@ -342,210 +306,198 @@ TEST(Test_AsyncCommClient, publicIF_null_check)
 class Test_AsyncCommClient_create : public ::testing::Test
 { 
 	protected:
-		AsyncCommClient* self;
-		int numofConcurrentSend;
+		AsyncCommClient* acc;
+		ACCConfig* config;
+
+		virtual void SetUp()
+		{
+			config = ACCConfig::create();
+		}
+		virtual void TearDown()
+		{
+			delete(config);
+		}
 };
 
 // ------------------------------------------------------------------
 TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_zero)
 {
 	// precondition
-	ASSERT_EQ(0, numofConcurrentSend = 0);
+	config->set_numof_concurrent_send(0);
 
 	// target
-	self = AsyncCommClient_create(numofConcurrentSend);
+	acc = AsyncCommClient::create(config);
 
 	// postcondition
-	EXPECT_EQ((AsyncCommClient*)NULL, self);
+	EXPECT_EQ((AsyncCommClient*)NULL, acc);
 }
 
 // ------------------------------------------------------------------
 TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
 {
 	// precondition
-	ASSERT_EQ(1, numofConcurrentSend = 1);
+	config->set_numof_concurrent_send(1);
 
 	// target
-	self = AsyncCommClient_create(numofConcurrentSend);
+	acc = AsyncCommClient::create(config);
 
 	// postcondition
-	EXPECT_NE((AsyncCommClient*)NULL, self);
+	EXPECT_NE((AsyncCommClient*)NULL, acc);
 }
 
-// ------------------------------------------------------------------
-// Test_AsyncCommClient_delete
-// ------------------------------------------------------------------
-class Test_AsyncCommClient_delete : public Test_AsyncCommClient_create
-{ 
-};
-
-// ------------------------------------------------------------------
-TEST_F(Test_AsyncCommClient_delete, self_is_not_null)
-{
-	// precondition
-	self = AsyncCommClient_create(1);
-	ASSERT_NE((AsyncCommClient*)NULL, self);
-
-	// target
-	AsyncCommClient_delete(self);
-
-	// postcondition
-	SUCCEED();
-}
-
-// ------------------------------------------------------------------
-// Test_AsyncCommClient_connectServer
-// ------------------------------------------------------------------
-class Test_AsyncCommClient_connectServer : public ::testing::Test
-{ 
-	protected:
-		AsyncCommClient* self;
-		int numofConcurrentSend;
-		bool ret;
-		TestServer* testServer;
-		TestServerConfig* config;
-
-		virtual void SetUp(void)
-		{
-			testServer = new TestServer();
-			config = new TestServerConfig();
-			config->family = AF_INET;
-			config->port = cTestServerPortNumber;
-		}
-
-		virtual void TearDown(void)
-		{
-			testServer->stop();
-			delete config;
-			delete testServer;
-		}
-};
-
-// ------------------------------------------------------------------
-TEST_F(Test_AsyncCommClient_connectServer, connectByINET)
-{
-	// precondition
-	self = AsyncCommClient_create(1);
-	ASSERT_NE((AsyncCommClient*)NULL, self);
-	ASSERT_TRUE(testServer->start(config));
-
-	// target
-	ret = AsyncCommClient_connectServer(
-			self,
-			eAsyncCommClientAddressFamily_INET,
-			cTestServerAddress,
-			config->port,
-			""
-			);
-
-	// postcondition
-	testServer->waitForConnected();
-	EXPECT_TRUE(ret);
-	EXPECT_TRUE(testServer->isConnected());
-	AsyncCommClient_disconnectServer(self);
-}
-
-// ------------------------------------------------------------------
-// Test_AsyncCommClient_send
-// ------------------------------------------------------------------
-
-// ------------------------------------------------------------------
-class NormalCallbackResult
-{
-	public:
-		uint32_t sendId;
-		int result;
-		vector<unsigned char> receiveData;
-};
-
-// ------------------------------------------------------------------
-static void __normalCallback(
-	void* context,
-	uint32_t sendId,
-	unsigned char* receiveData,
-	size_t sizeofReceiveData,
-	int result
-	)
-{
-	NormalCallbackResult* callbackResult = (NormalCallbackResult*)context;
-
-	callbackResult->sendId = sendId;
-	callbackResult->receiveData = vector<unsigned char>(sizeofReceiveData);
-	memcpy(&callbackResult->receiveData[0], receiveData, sizeofReceiveData);
-	callbackResult->result = result;
-}
-
-class Test_AsyncCommClient_send : public ::testing::Test
-{ 
-	protected:
-		AsyncCommClient* self;
-		int numofConcurrentSend;
-		bool ret;
-		AsyncCommClientCallbacks* callbacks;
-		vector<unsigned char> sendData;
-		uint32_t sendId;
-		NormalCallbackResult* callbackResult;
-		TestServer* testServer;
-		TestServerConfig* config;
-
-		virtual void SetUp(void)
-		{
-			testServer = new TestServer();
-			config = new TestServerConfig();
-			config->family = AF_INET;
-			config->port = cTestServerPortNumber;
-			testServer->start(config);
-
-			numofConcurrentSend = 1;
-			self = AsyncCommClient_create(numofConcurrentSend);
-			AsyncCommClient_connectServer(
-				self,
-				eAsyncCommClientAddressFamily_INET,
-				cTestServerAddress,
-				config->port,
-				""
-				);
-			testServer->waitForConnected();
-
-			callbackResult = new NormalCallbackResult();
-			AsyncCommClientCallbacks_setNormalCallback(
-				callbacks, __normalCallback, callbackResult
-				);
-		}
-
-		virtual void TearDown(void)
-		{
-			AsyncCommClient_disconnectServer(self);
-			AsyncCommClient_delete(self);
-
-			testServer->stop();
-			delete config;
-			delete testServer;
-		}
-};
-
-// ------------------------------------------------------------------
-TEST_F(Test_AsyncCommClient_send, callback_is_called)
-{
-	// precondition
-	ASSERT_NE((AsyncCommClient*)NULL, self);
-	ASSERT_TRUE(testServer->isConnected());
-	sendData = vector<unsigned char> {0x00, 0xFF};
-
-	// target
-	ret = AsyncCommClient_send(
-			self,
-			callbacks,
-			(unsigned char*)&sendData[0],
-			(size_t)sendData.size(),
-			&sendId
-			);
-
-	// postcondition
-	EXPECT_TRUE(ret);
-	EXPECT_EQ(sendId, callbackResult->sendId);
-	EXPECT_EQ(eAsyncCommClientResult_success, callbackResult->result);
-	EXPECT_EQ(sendData, callbackResult->receiveData);
-	EXPECT_EQ(sendData.size(), callbackResult->receiveData.size());
-}
+//// ------------------------------------------------------------------
+//// Test_AsyncCommClient_connectServer
+//// ------------------------------------------------------------------
+//class Test_AsyncCommClient_connectServer : public ::testing::Test
+//{ 
+//	protected:
+//		AsyncCommClient* self;
+//		int numofConcurrentSend;
+//		bool ret;
+//		TestServer* testServer;
+//		TestServerConfig* config;
+//
+//		virtual void SetUp(void)
+//		{
+//			testServer = new TestServer();
+//			config = new TestServerConfig();
+//			config->family = AF_INET;
+//			config->port = cTestServerPortNumber;
+//		}
+//
+//		virtual void TearDown(void)
+//		{
+//			testServer->stop();
+//			delete config;
+//			delete testServer;
+//		}
+//};
+//
+//// ------------------------------------------------------------------
+//TEST_F(Test_AsyncCommClient_connectServer, connectByINET)
+//{
+//	// precondition
+//	self = AsyncCommClient_create(1);
+//	ASSERT_NE((AsyncCommClient*)NULL, self);
+//	ASSERT_TRUE(testServer->start(config));
+//
+//	// target
+//	ret = AsyncCommClient_connectServer(
+//			self,
+//			eAsyncCommClientAddressFamily_INET,
+//			cTestServerAddress,
+//			config->port,
+//			""
+//			);
+//
+//	// postcondition
+//	testServer->waitForConnected();
+//	EXPECT_TRUE(ret);
+//	EXPECT_TRUE(testServer->isConnected());
+//	AsyncCommClient_disconnectServer(self);
+//}
+//
+//// ------------------------------------------------------------------
+//// Test_AsyncCommClient_send
+//// ------------------------------------------------------------------
+//
+//// ------------------------------------------------------------------
+//class NormalCallbackResult
+//{
+//	public:
+//		uint32_t sendId;
+//		int result;
+//		vector<unsigned char> receiveData;
+//};
+//
+//// ------------------------------------------------------------------
+//static void __normalCallback(
+//	void* context,
+//	uint32_t sendId,
+//	unsigned char* receiveData,
+//	size_t sizeofReceiveData,
+//	int result
+//	)
+//{
+//	NormalCallbackResult* callbackResult = (NormalCallbackResult*)context;
+//
+//	callbackResult->sendId = sendId;
+//	callbackResult->receiveData = vector<unsigned char>(sizeofReceiveData);
+//	memcpy(&callbackResult->receiveData[0], receiveData, sizeofReceiveData);
+//	callbackResult->result = result;
+//}
+//
+//class Test_AsyncCommClient_send : public ::testing::Test
+//{ 
+//	protected:
+//		AsyncCommClient* self;
+//		int numofConcurrentSend;
+//		bool ret;
+//		ACCCallbacks* callbacks;
+//		vector<unsigned char> sendData;
+//		uint32_t sendId;
+//		NormalCallbackResult* callbackResult;
+//		TestServer* testServer;
+//		TestServerConfig* config;
+//
+//		virtual void SetUp(void)
+//		{
+//			testServer = new TestServer();
+//			config = new TestServerConfig();
+//			config->family = AF_INET;
+//			config->port = cTestServerPortNumber;
+//			testServer->start(config);
+//
+//			numofConcurrentSend = 1;
+//			self = AsyncCommClient_create(numofConcurrentSend);
+//			AsyncCommClient_connectServer(
+//				self,
+//				eAsyncCommClientAddressFamily_INET,
+//				cTestServerAddress,
+//				config->port,
+//				""
+//				);
+//			testServer->waitForConnected();
+//
+//			callbackResult = new NormalCallbackResult();
+//			AsyncCommClientCallbacks_setNormalCallback(
+//				callbacks, __normalCallback, callbackResult
+//				);
+//		}
+//
+//		virtual void TearDown(void)
+//		{
+//			AsyncCommClient_disconnectServer(self);
+//			delete self;
+//
+//			testServer->stop();
+//			delete config;
+//			delete testServer;
+//		}
+//};
+//
+//// ------------------------------------------------------------------
+//TEST_F(Test_AsyncCommClient_send, callback_is_called)
+//{
+//	// precondition
+//	ASSERT_NE((AsyncCommClient*)NULL, self);
+//	ASSERT_TRUE(testServer->isConnected());
+//	sendData = vector<unsigned char> {0x00, 0xFF};
+//
+//	// target
+//	ret = AsyncCommClient_send(
+//			self,
+//			callbacks,
+//			(unsigned char*)&sendData[0],
+//			(size_t)sendData.size(),
+//			&sendId
+//			);
+//
+//	// postcondition
+//	EXPECT_TRUE(ret);
+//	EXPECT_EQ(sendId, callbackResult->sendId);
+//	EXPECT_EQ(eAsyncCommClientResult_success, callbackResult->result);
+//	EXPECT_EQ(sendData, callbackResult->receiveData);
+//	EXPECT_EQ(sendData.size(), callbackResult->receiveData.size());
+//}
 

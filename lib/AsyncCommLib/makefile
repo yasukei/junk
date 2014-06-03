@@ -10,7 +10,8 @@ INCLUDE_DIRS = \
 	.
 
 CPPFLAGS += -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include -I$(INCLUDE_DIRS)
-CXXFLAGS += -g -Wall -Wextra -std=c++11
+#CXXFLAGS += -g -Wall -Wextra -std=c++11
+CXXFLAGS += -g -Wall -Wextra -std=c++0x
 CFLAGS += -g -Wall -Wextra
 
 # targets.

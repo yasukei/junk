@@ -1,7 +1,7 @@
 #
 # variables
 #
-GMOCK_DIR = $(HOME)/bin/gmock-1.7.0
+GMOCK_DIR = $(HOME)/bin/gmock-1.6.0
 GTEST_DIR = $(GMOCK_DIR)/gtest
 
 GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
