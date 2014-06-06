@@ -146,3 +146,180 @@ Commands* Commands::create(ostream& os)
 	return new CommandsImpl(os);
 }
 
+// ------------------------------------------------------------------
+// CommandsUtil
+// ------------------------------------------------------------------
+/*
+void __get_first_word(const string& str, string& word)
+{
+	string::size_type command_head, command_tail;
+
+	command_head = one_line.find_first_not_of(delims);
+	if(command_head == string::npos)
+	{
+		return;
+	}
+	command_tail = one_line.find_first_of(delims, command_head);
+	if(command_tail == string::npos)
+	{
+		command_name.assign( one_line.substr(command_head) );
+		return;
+	}
+	command_name.assign( one_line.substr(command_head, command_tail - command_head) );
+}
+
+// ------------------------------------------------------------------
+string& __remove_delims_on_head(const string& str, const string& delims = " \t")
+{
+	string::size_type word_head = __get_indexof_xth_word_head(str);
+
+	if(word_head == 0)
+	{
+		return str;
+	}
+	else
+	{
+		return str.erase(0, word_head - 1);
+	}
+}
+*/
+
+// ------------------------------------------------------------------
+void CommandsUtil::parse(istream& is, string& command_name, string& arg)
+{
+	string one_line;
+
+	std::getline(is, one_line);
+
+	//StringUtil::take_xth_word(one_line, 1, command_name);
+	StringUtil::trim_delims_on_head(one_line);
+	StringUtil::trim_delims_on_tail(one_line);
+	arg.assign(one_line);
+
+#if 0
+	string one_line;
+	string::size_type arg_head, arg_tail;
+	const string delims(" \t");
+
+	// init
+	command_name.assign("");
+	arg.assign("");
+
+	std::getline(is, one_line);
+
+	__get_first_word(one_line, command_name);
+
+	arg_head = one_line.find_first_not_of(delims, command_tail);
+	if(arg_head == string::npos)
+	{
+		return;
+	}
+	arg_tail = one_line.find_last_not_of(delims);
+	arg.assign( one_line.substr(arg_head, arg_tail - arg_head + 1) );
+#endif
+}
+
+// ------------------------------------------------------------------
+// StringUtil
+// ------------------------------------------------------------------
+string::size_type StringUtil::get_indexof_xth_word_head(
+	const string& str,
+	const unsigned int xth,
+	const string& delims
+	)
+{
+	string::size_type word_head_index, delim_head_index;
+	unsigned int ith;
+
+	word_head_index = string::npos;
+	delim_head_index = 0;
+	for(ith = 0; ith < xth; ith++)
+	{
+		word_head_index = str.find_first_not_of(delims, delim_head_index);
+		if(word_head_index == string::npos)
+		{
+			return string::npos;
+		}
+		delim_head_index = str.find_first_of(delims, word_head_index);
+	}
+
+	return word_head_index;
+}
+
+// ------------------------------------------------------------------
+string::size_type StringUtil::get_indexof_xth_word_tail(
+	const string& str,
+	const unsigned int xth,
+	const string& delims
+	)
+{
+	string::size_type word_head_index;
+	string::size_type delim_head_index;
+	
+	word_head_index = StringUtil::get_indexof_xth_word_head(str, xth, delims);
+	if(word_head_index == string::npos)
+	{
+		return string::npos;
+	}
+	delim_head_index = str.find_first_of(delims, word_head_index);
+	if(delim_head_index == string::npos)
+	{
+		return str.length() - 1;
+	}
+	return delim_head_index - 1;
+}
+
+// ------------------------------------------------------------------
+string& StringUtil::get_xth_word(
+	const string& str,
+	const unsigned int xth,
+	string& word,
+	const string& delims
+	)
+{
+	string::size_type word_head_index, word_tail_index;
+
+	word_head_index = StringUtil::get_indexof_xth_word_head(str, xth, delims);
+	if(word_head_index == string::npos)
+	{
+		return word.assign("");
+	}
+	word_tail_index = StringUtil::get_indexof_xth_word_tail(str, xth, delims);
+
+	return word.assign( str.substr(word_head_index, word_tail_index - word_head_index + 1) );
+}
+
+// ------------------------------------------------------------------
+string& StringUtil::trim_delims_on_head(
+	string& str,
+	const string& delims
+	)
+{
+	string::size_type word_head_index;
+
+	word_head_index = str.find_first_not_of(delims);
+	if( (word_head_index == 0) || (word_head_index == string::npos) )
+	{
+		return str;
+	}
+
+	return str.erase(0, word_head_index);
+}
+
+// ------------------------------------------------------------------
+string& StringUtil::trim_delims_on_tail(
+	string& str,
+	const string& delims
+	)
+{
+	string::size_type word_tail_index;
+
+	word_tail_index = str.find_last_not_of(delims);
+	if( (word_tail_index == (str.length() - 1) ) || (word_tail_index == string::npos) )
+	{
+		return str;
+	}
+
+	return str.erase(word_tail_index + 1, str.length() - word_tail_index);
+}
+

@@ -40,4 +40,45 @@ class Commands
 		//Commands& operator=(const Commands& rhs);
 };
 
+// ------------------------------------------------------------------
+// CommandsUtil
+// ------------------------------------------------------------------
+class CommandsUtil
+{
+	public:
+		static void parse(istream& is, string& command_name, string& arg);
+};
+
+// ------------------------------------------------------------------
+// StringUtil
+// ------------------------------------------------------------------
+class StringUtil
+{
+	public:
+		static string::size_type get_indexof_xth_word_head(
+			const string& str,
+			const unsigned int xth,
+			const string& delims = " \t"
+			);
+		static string::size_type get_indexof_xth_word_tail(
+			const string& str,
+			const unsigned int xth,
+			const string& delims = " \t"
+			);
+		static string& get_xth_word(
+			const string& str,
+			const unsigned int xth,
+			string& word,
+			const string& delims = " \t"
+			);
+		static string& trim_delims_on_head(
+			string& str,
+			const string& delims = " \t"
+			);
+		static string& trim_delims_on_tail(
+			string& str,
+			const string& delims = " \t"
+			);
+};
+
 #endif /* COMMANDS_HPP_ */
