@@ -107,29 +107,31 @@ TEST_P(Test_CommandsUtil_parse, _)
 	EXPECT_EQ(param[2], arg);
 }
 
-//INSTANTIATE_TEST_CASE_P(
-//	parameterized_instance,
-//	Test_CommandsUtil_parse,
-//	testing::Values(
-//		vector<string> { "\n",					"",			"" },
-//		vector<string> { " \n",					"",			"" },
-//		vector<string> { "  \n",				"",			"" },
-//		vector<string> { "command\n",			"command",	"" },
-//		vector<string> { " command\n",			"command",	"" },
-//		vector<string> { "  command\n",			"command",	"" },
-//		vector<string> { "  command \n",		"command",	"" },
-//		vector<string> { "  command  \n",		"command",	"" },
-//		vector<string> { " command  \n",		"command",	"" },
-//		vector<string> { "command  \n",			"command",	"" },
-//		vector<string> { "command arg\n",		"command",	"arg" },
-//		vector<string> { "command  arg\n",		"command",	"arg" },
-//		vector<string> { "command   arg\n",		"command",	"arg" },
-//		vector<string> { "command   arg \n",	"command",	"arg" },
-//		vector<string> { "command   arg  \n",	"command",	"arg" },
-//		vector<string> { "command  arg  \n",	"command",	"arg" },
-//		vector<string> { "command arg  \n",		"command",	"arg" }
-//	)
-//);
+INSTANTIATE_TEST_CASE_P(
+	parameterized_instance,
+	Test_CommandsUtil_parse,
+	testing::Values(
+		vector<string> { "\n",						"",			"" },
+		vector<string> { " \n",						"",			"" },
+		vector<string> { "  \n",					"",			"" },
+		vector<string> { "command\n",				"command",	"" },
+		vector<string> { " command\n",				"command",	"" },
+		vector<string> { "  command\n",				"command",	"" },
+		vector<string> { "  command \n",			"command",	"" },
+		vector<string> { "  command  \n",			"command",	"" },
+		vector<string> { " command  \n",			"command",	"" },
+		vector<string> { "command  \n",				"command",	"" },
+		vector<string> { "command arg\n",			"command",	"arg" },
+		vector<string> { "command  arg\n",			"command",	"arg" },
+		vector<string> { "command   arg\n",			"command",	"arg" },
+		vector<string> { "command   arg \n",		"command",	"arg" },
+		vector<string> { "command   arg  \n",		"command",	"arg" },
+		vector<string> { "command  arg  \n",		"command",	"arg" },
+		vector<string> { "command arg  \n",			"command",	"arg" },
+		vector<string> { "command arg1 arg2\n",		"command",	"arg1 arg2" },
+		vector<string> { "command arg1  arg2 \n",	"command",	"arg1  arg2" }
+	)
+);
 
 TEST(StringUtil_get_indexof_xth_word_head, _)
 {
@@ -333,6 +335,73 @@ INSTANTIATE_TEST_CASE_P(
 );
 
 // ------------------------------------------------------------------
+class Test_StringUtil_take_xth_word : public ::testing::TestWithParam<
+	tr1::tuple<string, unsigned int, string, string>
+	>
+{ 
+};
+
+TEST_P(Test_StringUtil_take_xth_word, _)
+{
+	string str = tr1::get<0>(GetParam());
+	unsigned int xth = tr1::get<1>(GetParam());
+	string word;
+
+	// target
+	string& ret = StringUtil::take_xth_word(
+		str,
+		xth,
+		word
+		);
+
+	// postcondition
+	EXPECT_EQ(tr1::get<2>(GetParam()), str);
+	EXPECT_EQ(tr1::get<3>(GetParam()), word);
+	EXPECT_EQ(&word, &ret);
+}
+
+INSTANTIATE_TEST_CASE_P(
+	parameterized_instance,
+	Test_StringUtil_take_xth_word,
+	testing::Values(
+		tr1::make_tuple( string(""),		(unsigned int)0, string(""), string("") ),
+		tr1::make_tuple( string(""),		(unsigned int)1, string(""), string("") ),
+		tr1::make_tuple( string(" "),		(unsigned int)0, string(" "), string("") ),
+		tr1::make_tuple( string(" "),		(unsigned int)1, string(" "), string("") ),
+		tr1::make_tuple( string("a"),		(unsigned int)0, string("a"), string("") ),
+		tr1::make_tuple( string("a"),		(unsigned int)1, string(""), string("a") ),
+		tr1::make_tuple( string("a"),		(unsigned int)2, string("a"), string("") ),
+		tr1::make_tuple( string(" a"),		(unsigned int)0, string(" a"), string("") ),
+		tr1::make_tuple( string(" a"),		(unsigned int)1, string(" "), string("a") ),
+		tr1::make_tuple( string(" a"),		(unsigned int)2, string(" a"), string("") ),
+		tr1::make_tuple( string("  a"),		(unsigned int)0, string("  a"), string("") ),
+		tr1::make_tuple( string("  a"),		(unsigned int)1, string("  "), string("a") ),
+		tr1::make_tuple( string("  a"),		(unsigned int)2, string("  a"), string("") ),
+		tr1::make_tuple( string("  a "),	(unsigned int)0, string("  a "), string("") ),
+		tr1::make_tuple( string("  a "),	(unsigned int)1, string("   "), string("a") ),
+		tr1::make_tuple( string("  a "),	(unsigned int)2, string("  a "), string("") ),
+		//
+		tr1::make_tuple( string("a b"),		(unsigned int)0, string("a b"),		string("") ),
+		tr1::make_tuple( string("a b"),		(unsigned int)1, string(" b"),		string("a") ),
+		tr1::make_tuple( string("a b"),		(unsigned int)2, string("a "),		string("b") ),
+		tr1::make_tuple( string("aa  bb"),	(unsigned int)0, string("aa  bb"),	string("") ),
+		tr1::make_tuple( string("aa  bb"),	(unsigned int)1, string("  bb"),	string("aa") ),
+		tr1::make_tuple( string("aa  bb"),	(unsigned int)2, string("aa  "),	string("bb") ),
+		//
+		tr1::make_tuple( string("a b c"), 		(unsigned int)0, string("a b c"),		string("") ),
+		tr1::make_tuple( string("a b c"), 		(unsigned int)1, string(" b c"),		string("a") ),
+		tr1::make_tuple( string("a b c"), 		(unsigned int)2, string("a  c"),		string("b") ),
+		tr1::make_tuple( string("a b c"), 		(unsigned int)3, string("a b "),		string("c") ),
+		tr1::make_tuple( string("a b c"), 		(unsigned int)4, string("a b c"),		string("") ),
+		tr1::make_tuple( string("aaa bbb ccc"), (unsigned int)0, string("aaa bbb ccc"),	string("") ),
+		tr1::make_tuple( string("aaa bbb ccc"), (unsigned int)1, string(" bbb ccc"),	string("aaa") ),
+		tr1::make_tuple( string("aaa bbb ccc"), (unsigned int)2, string("aaa  ccc"),	string("bbb") ),
+		tr1::make_tuple( string("aaa bbb ccc"), (unsigned int)3, string("aaa bbb "),	string("ccc") ),
+		tr1::make_tuple( string("aaa bbb ccc"), (unsigned int)4, string("aaa bbb ccc"),	string("") )
+	)
+);
+
+// ------------------------------------------------------------------
 class Test_StringUtil_trim_delims_on_head : public ::testing::TestWithParam<
 	tr1::tuple<string, string, string>
 	>
@@ -359,6 +428,8 @@ INSTANTIATE_TEST_CASE_P(
 	Test_StringUtil_trim_delims_on_head,
 	testing::Values(
 		tr1::make_tuple( string(""),		string(""),		string("") ),
+		tr1::make_tuple( string(" "),		string(""),		string(" ") ),
+		tr1::make_tuple( string(" "),		string(" "),	string("") ),
 		tr1::make_tuple( string(""),		string(" "),	string("") ),
 		tr1::make_tuple( string("a"),		string(""),		string("a") ),
 		tr1::make_tuple( string("a"),		string(" "),	string("a") ),
@@ -402,6 +473,8 @@ INSTANTIATE_TEST_CASE_P(
 	Test_StringUtil_trim_delims_on_tail,
 	testing::Values(
 		tr1::make_tuple( string(""),		string(""),		string("") ),
+		tr1::make_tuple( string(" "),		string(""),		string(" ") ),
+		tr1::make_tuple( string(" "),		string(" "),	string("") ),
 		tr1::make_tuple( string(""),		string(" "),	string("") ),
 		tr1::make_tuple( string("a"),		string(""),		string("a") ),
 		tr1::make_tuple( string("a"),		string(" "),	string("a") ),

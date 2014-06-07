@@ -198,32 +198,10 @@ void CommandsUtil::parse(istream& is, string& command_name, string& arg)
 
 	std::getline(is, one_line);
 
-	//StringUtil::take_xth_word(one_line, 1, command_name);
+	StringUtil::take_xth_word(one_line, 1, command_name);
 	StringUtil::trim_delims_on_head(one_line);
 	StringUtil::trim_delims_on_tail(one_line);
 	arg.assign(one_line);
-
-#if 0
-	string one_line;
-	string::size_type arg_head, arg_tail;
-	const string delims(" \t");
-
-	// init
-	command_name.assign("");
-	arg.assign("");
-
-	std::getline(is, one_line);
-
-	__get_first_word(one_line, command_name);
-
-	arg_head = one_line.find_first_not_of(delims, command_tail);
-	if(arg_head == string::npos)
-	{
-		return;
-	}
-	arg_tail = one_line.find_last_not_of(delims);
-	arg.assign( one_line.substr(arg_head, arg_tail - arg_head + 1) );
-#endif
 }
 
 // ------------------------------------------------------------------
@@ -297,6 +275,28 @@ string& StringUtil::get_xth_word(
 }
 
 // ------------------------------------------------------------------
+string& StringUtil::take_xth_word(
+	string& str,
+	const unsigned int xth,
+	string& word,
+	const string& delims
+	)
+{
+	string::size_type word_head_index, word_tail_index;
+
+	word_head_index = StringUtil::get_indexof_xth_word_head(str, xth, delims);
+	if(word_head_index == string::npos)
+	{
+		return word.assign("");
+	}
+	word_tail_index = StringUtil::get_indexof_xth_word_tail(str, xth, delims);
+
+	word.assign( str.substr(word_head_index, word_tail_index - word_head_index + 1) );
+	str.erase(word_head_index, word_tail_index - word_head_index + 1);
+	return word;
+}
+
+// ------------------------------------------------------------------
 string& StringUtil::trim_delims_on_head(
 	string& str,
 	const string& delims
@@ -305,9 +305,13 @@ string& StringUtil::trim_delims_on_head(
 	string::size_type word_head_index;
 
 	word_head_index = str.find_first_not_of(delims);
-	if( (word_head_index == 0) || (word_head_index == string::npos) )
+	if(word_head_index == 0)
 	{
 		return str;
+	}
+	if(word_head_index == string::npos)
+	{
+		return str.erase();
 	}
 
 	return str.erase(0, word_head_index);
@@ -322,9 +326,13 @@ string& StringUtil::trim_delims_on_tail(
 	string::size_type word_tail_index;
 
 	word_tail_index = str.find_last_not_of(delims);
-	if( (word_tail_index == (str.length() - 1) ) || (word_tail_index == string::npos) )
+	if(word_tail_index == (str.length() - 1) )
 	{
 		return str;
+	}
+	if(word_tail_index == string::npos)
+	{
+		return str.erase();
 	}
 
 	return str.erase(word_tail_index + 1, str.length() - word_tail_index);

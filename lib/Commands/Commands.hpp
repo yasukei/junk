@@ -71,6 +71,12 @@ class StringUtil
 			string& word,
 			const string& delims = " \t"
 			);
+		static string& take_xth_word(
+			string& str,
+			const unsigned int xth,
+			string& word,
+			const string& delims = " \t"
+			);
 		static string& trim_delims_on_head(
 			string& str,
 			const string& delims = " \t"
