@@ -11,7 +11,7 @@ using namespace std;
 class Command
 {
 	public:
-		~Command(void) {};
+		virtual ~Command(void) = 0;
 
 		virtual bool execute(const string& arg, ostream& os) = 0;
 };
@@ -29,7 +29,7 @@ class Commands
 {
 	public:
 		static Commands* create(ostream& os);
-		~Commands(void) {};
+		virtual ~Commands(void) = 0;
 
 		virtual bool register_command_library(const string& path_to_library) = 0;
 		virtual bool execute_command(const string& command_name, const string& arg) = 0;

@@ -61,9 +61,11 @@ bool CommandsImpl::register_command_library(
 	int flag = RTLD_NOW | RTLD_LOCAL;
 	void* lib_handle;
 
+	dlerror();
 	lib_handle = dlopen(path_to_library.c_str(), flag);
 	if(lib_handle == NULL)
 	{
+		cerr << dlerror() << endl;
 		return false;
 	}
 
@@ -144,6 +146,11 @@ bool CommandsImpl::execute_command(
 Commands* Commands::create(ostream& os)
 {
 	return new CommandsImpl(os);
+}
+
+// ------------------------------------------------------------------
+Commands::~Commands(void)
+{
 }
 
 // ------------------------------------------------------------------
