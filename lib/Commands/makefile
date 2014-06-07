@@ -1,4 +1,4 @@
-TEST_TARGET = Test_AsyncCommClient
+TEST_TARGET = Test_Commands
 TEST_COMMANDS_LIB = libTestCommands.so
 
 SRC_OBJS = \
