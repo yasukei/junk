@@ -26,16 +26,16 @@
 class Test_Commands_register_command_library : public ::testing::Test
 { 
 	protected:
-		Commands* commands;
+		Commands* commands_;
 
 		virtual void SetUp(void)
 		{
-			commands = Commands::create(cout);
-			ASSERT_NE((Commands*)NULL, commands);
+			commands_ = Commands::create(cout);
+			ASSERT_NE((Commands*)NULL, commands_);
 		}
 		virtual void TearDown(void)
 		{
-			delete(commands);
+			delete(commands_);
 		}
 };
 
@@ -45,7 +45,7 @@ TEST_F(Test_Commands_register_command_library, success)
 	// precondition
 
 	// target
-	bool ret = commands->register_command_library("./libTestCommands.so");
+	bool ret = commands_->register_command_library("./libTestCommands.so");
 
 	// postcondition
 	EXPECT_TRUE(ret);
@@ -57,17 +57,17 @@ TEST_F(Test_Commands_register_command_library, success)
 class Test_Commands_execute_command : public ::testing::Test
 { 
 	protected:
-		Commands* commands;
+		Commands* commands_;
 
 		virtual void SetUp(void)
 		{
-			commands = Commands::create(cout);
-			ASSERT_NE((Commands*)NULL, commands);
-			ASSERT_TRUE(commands->register_command_library("./libTestCommands.so"));
+			commands_ = Commands::create(cout);
+			ASSERT_NE((Commands*)NULL, commands_);
+			ASSERT_TRUE(commands_->register_command_library("./libTestCommands.so"));
 		}
 		virtual void TearDown(void)
 		{
-			delete(commands);
+			delete(commands_);
 		}
 };
 
@@ -77,7 +77,7 @@ TEST_F(Test_Commands_execute_command, success)
 	// precondition
 
 	// target
-	bool ret = commands->execute_command("TestCommand1", "This is arguments!");
+	bool ret = commands_->execute_command("TestCommand1", "This is arguments!");
 
 	// postcondition
 	EXPECT_TRUE(ret);
@@ -90,16 +90,16 @@ class Test_CommandsUtil_parse : public ::testing::TestWithParam< vector<string> 
 { 
 };
 
-TEST_P(Test_CommandsUtil_parse, _)
+TEST_P(Test_CommandsUtil_parse, various_inputs)
 {
 	vector<string> param = GetParam();
 	stringbuf strbuf(param[0]);
-	istream is(&strbuf);
+	istream input_stream(&strbuf);
 	string command_name;
 	string arg;
 
 	// target
-	CommandsUtil::parse(is, command_name, arg);
+	CommandsUtil::parse(input_stream, command_name, arg);
 
 	// postcondition
 	//EXPECT_TRUE(ret);
@@ -133,17 +133,6 @@ INSTANTIATE_TEST_CASE_P(
 	)
 );
 
-TEST(StringUtil_get_indexof_xth_word_head, _)
-{
-	string::size_type index;
-
-	// target
-	index = StringUtil::get_indexof_xth_word_head("a b c", 9);
-
-	// postcondition
-	EXPECT_EQ((string::size_type)string::npos, index);
-}
-
 // ------------------------------------------------------------------
 // Test_StringUtil
 // ------------------------------------------------------------------
@@ -153,7 +142,7 @@ class Test_StringUtil_get_indexof_xth_word_head : public ::testing::TestWithPara
 { 
 };
 
-TEST_P(Test_StringUtil_get_indexof_xth_word_head, _)
+TEST_P(Test_StringUtil_get_indexof_xth_word_head, various_inputs)
 {
 	string::size_type index;
 
@@ -215,7 +204,7 @@ class Test_StringUtil_get_indexof_xth_word_tail : public ::testing::TestWithPara
 { 
 };
 
-TEST_P(Test_StringUtil_get_indexof_xth_word_tail, _)
+TEST_P(Test_StringUtil_get_indexof_xth_word_tail, various_inputs)
 {
 	string::size_type index;
 
@@ -277,7 +266,7 @@ class Test_StringUtil_get_xth_word : public ::testing::TestWithParam<
 { 
 };
 
-TEST_P(Test_StringUtil_get_xth_word, _)
+TEST_P(Test_StringUtil_get_xth_word, various_inputs)
 {
 	string word;
 
@@ -341,7 +330,7 @@ class Test_StringUtil_take_xth_word : public ::testing::TestWithParam<
 { 
 };
 
-TEST_P(Test_StringUtil_take_xth_word, _)
+TEST_P(Test_StringUtil_take_xth_word, various_inputs)
 {
 	string str = tr1::get<0>(GetParam());
 	unsigned int xth = tr1::get<1>(GetParam());
@@ -408,7 +397,7 @@ class Test_StringUtil_trim_delims_on_head : public ::testing::TestWithParam<
 { 
 };
 
-TEST_P(Test_StringUtil_trim_delims_on_head, _)
+TEST_P(Test_StringUtil_trim_delims_on_head, various_inputs)
 {
 	string str = tr1::get<0>(GetParam());
 
@@ -453,7 +442,7 @@ class Test_StringUtil_trim_delims_on_tail : public ::testing::TestWithParam<
 { 
 };
 
-TEST_P(Test_StringUtil_trim_delims_on_tail, _)
+TEST_P(Test_StringUtil_trim_delims_on_tail, various_inputs)
 {
 	string str = tr1::get<0>(GetParam());
 
