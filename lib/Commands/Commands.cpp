@@ -156,42 +156,6 @@ Commands::~Commands(void)
 // ------------------------------------------------------------------
 // CommandsUtil
 // ------------------------------------------------------------------
-/*
-void __get_first_word(const string& str, string& word)
-{
-	string::size_type command_head, command_tail;
-
-	command_head = one_line.find_first_not_of(delims);
-	if(command_head == string::npos)
-	{
-		return;
-	}
-	command_tail = one_line.find_first_of(delims, command_head);
-	if(command_tail == string::npos)
-	{
-		command_name.assign( one_line.substr(command_head) );
-		return;
-	}
-	command_name.assign( one_line.substr(command_head, command_tail - command_head) );
-}
-
-// ------------------------------------------------------------------
-string& __remove_delims_on_head(const string& str, const string& delims = " \t")
-{
-	string::size_type word_head = __get_indexof_xth_word_head(str);
-
-	if(word_head == 0)
-	{
-		return str;
-	}
-	else
-	{
-		return str.erase(0, word_head - 1);
-	}
-}
-*/
-
-// ------------------------------------------------------------------
 void CommandsUtil::parse(istream& is, string& command_name, string& arg)
 {
 	string one_line;
