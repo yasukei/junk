@@ -29,9 +29,9 @@ class CommandsImpl : public Commands
 		ostream& output_stream_;
 		vector<void*> library_handles_;
 
-		void* find_symbol(const string& symbol_name);
-		Command_create find_Command_create(const string& command_name);
-		Command_destroy find_Command_destroy(const string& command_name);
+		void* find_symbol(const string& symbol_name) const;
+		Command_create find_Command_create(const string& command_name) const;
+		Command_destroy find_Command_destroy(const string& command_name) const;
 };
 
 // ------------------------------------------------------------------
@@ -76,9 +76,9 @@ bool CommandsImpl::register_command_library(
 // ------------------------------------------------------------------
 void* CommandsImpl::find_symbol(
 	const string& symbol_name
-	)
+	) const
 {
-	vector<void*>::iterator lib_handle;
+	vector<void*>::const_iterator lib_handle;
 	void* symbol;
 
 	for(lib_handle = library_handles_.begin(); lib_handle != library_handles_.end(); lib_handle++)
@@ -95,7 +95,7 @@ void* CommandsImpl::find_symbol(
 // ------------------------------------------------------------------
 Command_create CommandsImpl::find_Command_create(
 	const string& command_name
-	)
+	) const
 {
 	return (Command_create)find_symbol(command_name + cCommand_create_suffix);
 }
@@ -103,7 +103,7 @@ Command_create CommandsImpl::find_Command_create(
 // ------------------------------------------------------------------
 Command_destroy CommandsImpl::find_Command_destroy(
 	const string& command_name
-	)
+	) const
 {
 	return (Command_destroy)find_symbol(command_name + cCommand_destroy_suffix);
 }
