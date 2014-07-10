@@ -1,0 +1,5 @@
+active proctype helloworld()
+{
+	printf("hello world\n");
+}
+
