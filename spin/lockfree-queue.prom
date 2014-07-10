@@ -1,0 +1,121 @@
+#define NULL -1
+#define MAX_OF_NODES 4
+
+mtype = { fire };
+short queue[MAX_OF_NODES];
+short head = NULL;
+short tail = NULL;
+short actualHead = NULL;
+
+proctype enqueue(chan trigger)
+{
+	short node = 0;
+
+	do
+		:: trigger?fire ->
+			/* sweep */
+			if
+				:: head != NULL ->
+					head = actualHead;
+					if
+						:: head == NULL ->
+							tail = NULL;
+						:: else ->
+							skip;
+					fi
+				:: else -> skip;
+			fi
+			/* sweep */
+
+			queue[node] = NULL;
+			if
+				:: head == NULL ->
+					head = node;
+					tail = node;
+				:: else ->
+					queue[tail] = node;
+					tail = node;
+			fi
+
+			// CAS
+			atomic
+			{
+				if
+					:: actualHead == NULL ->
+						actualHead = node;
+					:: else ->
+						skip;
+				fi
+			}
+
+			// ready for next loop
+			node = node + 1;
+			if
+				:: node == MAX_OF_NODES -> break;
+				:: else -> skip;
+			fi
+	od
+}
+
+proctype dequeue(chan trigger)
+{
+	short node;
+
+	do
+		:: trigger?fire ->
+			if
+				:: actualHead == NULL ->
+					skip;
+				:: else ->
+					node = actualHead;
+					atomic
+					{
+						actualHead = queue[node];
+					}
+			fi
+	od
+}
+
+proctype monitor()
+{
+	do
+		:: atomic
+			{
+				if
+					:: actualHead != NULL ->
+						assert(head <= actualHead);
+						assert(tail <= head);
+						assert(head != NULL);
+						assert(tail != NULL);
+					:: else -> skip;
+				fi
+			}
+	od
+}
+
+init
+{
+	chan trigger = [0] of { mtype };
+	short i = 0;
+
+	// initialize
+	do
+		:: i < MAX_OF_NODES ->
+			queue[i] = NULL;
+			i = i + 1;
+		:: else ->
+			break;
+	od
+
+	// start verification
+	atomic
+	{
+		run enqueue(trigger);
+		run dequeue(trigger);
+		run monitor();
+	}
+
+	do
+		:: trigger!fire;
+	od
+}
