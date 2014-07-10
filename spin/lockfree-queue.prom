@@ -1,25 +1,36 @@
 #define NULL -1
 #define MAX_OF_NODES 4
+#define NodeIndex short
+
+typedef Node
+{
+	NodeIndex next;
+};
+
+typedef Queue
+{
+	NodeIndex head;
+	NodeIndex tail;
+	NodeIndex actualHead;
+};
 
 mtype = { fire };
-short queue[MAX_OF_NODES];
-short head = NULL;
-short tail = NULL;
-short actualHead = NULL;
+Node gNodes[MAX_OF_NODES];
+Queue gQueue;
 
 proctype enqueue(chan trigger)
 {
-	short node = 0;
+	NodeIndex enqueuedIndex = 0;
 
 	do
 		:: trigger?fire ->
 			/* sweep */
 			if
-				:: head != NULL ->
-					head = actualHead;
+				:: gQueue.head != NULL ->
+					gQueue.head = gQueue.actualHead;
 					if
-						:: head == NULL ->
-							tail = NULL;
+						:: gQueue.head == NULL ->
+							gQueue.tail = NULL;
 						:: else ->
 							skip;
 					fi
@@ -27,31 +38,31 @@ proctype enqueue(chan trigger)
 			fi
 			/* sweep */
 
-			queue[node] = NULL;
+			gNodes[enqueuedIndex].next = NULL;
 			if
-				:: head == NULL ->
-					head = node;
-					tail = node;
+				:: gQueue.head == NULL ->
+					gQueue.head = enqueuedIndex;
+					gQueue.tail = enqueuedIndex;
 				:: else ->
-					queue[tail] = node;
-					tail = node;
+					gNodes[gQueue.tail].next = enqueuedIndex;
+					gQueue.tail = enqueuedIndex;
 			fi
 
 			// CAS
 			atomic
 			{
 				if
-					:: actualHead == NULL ->
-						actualHead = node;
+					:: gQueue.actualHead == NULL ->
+						gQueue.actualHead = enqueuedIndex;
 					:: else ->
 						skip;
 				fi
 			}
 
 			// ready for next loop
-			node = node + 1;
+			enqueuedIndex = enqueuedIndex + 1;
 			if
-				:: node == MAX_OF_NODES -> break;
+				:: enqueuedIndex == MAX_OF_NODES -> break;
 				:: else -> skip;
 			fi
 	od
@@ -59,34 +70,34 @@ proctype enqueue(chan trigger)
 
 proctype dequeue(chan trigger)
 {
-	short node;
+	NodeIndex dequeuedIndex;
 
 	do
 		:: trigger?fire ->
 			if
-				:: actualHead == NULL ->
+				:: gQueue.actualHead == NULL ->
 					skip;
 				:: else ->
-					node = actualHead;
+					dequeuedIndex = gQueue.actualHead;
 					atomic
 					{
-						actualHead = queue[node];
+						gQueue.actualHead = gNodes[dequeuedIndex].next;
 					}
 			fi
 	od
 }
 
-proctype monitor()
+proctype monitor_invariant()
 {
 	do
 		:: atomic
 			{
 				if
-					:: actualHead != NULL ->
-						assert(head <= actualHead);
-						assert(tail <= head);
-						assert(head != NULL);
-						assert(tail != NULL);
+					:: gQueue.actualHead != NULL ->
+						assert(gQueue.head <= gQueue.actualHead);
+						assert(gQueue.actualHead <= (gQueue.tail + 1));
+						assert(gQueue.head != NULL);
+						assert(gQueue.tail != NULL);
 					:: else -> skip;
 				fi
 			}
@@ -96,23 +107,29 @@ proctype monitor()
 init
 {
 	chan trigger = [0] of { mtype };
-	short i = 0;
+	NodeIndex index = 0;
 
 	// initialize
-	do
-		:: i < MAX_OF_NODES ->
-			queue[i] = NULL;
-			i = i + 1;
-		:: else ->
-			break;
-	od
+	atomic
+	{
+		do
+			:: index < MAX_OF_NODES ->
+				gNodes[index].next = NULL;
+				index = index + 1;
+			:: else ->
+				break;
+		od
+		gQueue.head = NULL;
+		gQueue.tail = NULL;
+		gQueue.actualHead = NULL;
+	}
 
 	// start verification
 	atomic
 	{
 		run enqueue(trigger);
 		run dequeue(trigger);
-		run monitor();
+		run monitor_invariant();
 	}
 
 	do
