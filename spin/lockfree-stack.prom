@@ -1,0 +1,116 @@
+#define NULL -1
+#define MAX_OF_NODES 10
+#define NodePointer int
+
+typedef Node
+{
+	NodePointer next;
+};
+
+typedef Stack
+{
+	NodePointer top;
+};
+
+Node gNodes[MAX_OF_NODES];
+Stack gStack;
+int gNumofPushed;
+int gNumofPopped;
+int gNumofRemained;
+int gEndCount;
+
+proctype push()
+{
+	int index;
+
+	for(index : 0 .. (MAX_OF_NODES - 1)) {
+		do ::
+			gNodes[index].next = gStack.top;
+			// CAS
+			atomic {
+				if
+					:: gStack.top == gNodes[index].next ->
+						gStack.top = index;
+						break;
+					:: else ->
+						skip;
+				fi
+			}
+		od
+		gNumofPushed = gNumofPushed + 1;
+	}
+	atomic {
+		gEndCount = gEndCount + 1;
+	}
+}
+
+proctype pop()
+{
+	int index;
+	NodePointer nodePointer;
+
+	for(index : 0 .. (MAX_OF_NODES - 1)) {
+		do ::
+			if
+				:: gStack.top != NULL ->
+					nodePointer = gStack.top;
+					// CAS
+					atomic
+					{
+						if
+							:: gStack.top == nodePointer ->
+								gStack.top = gNodes[nodePointer].next;
+								break;
+							:: else ->
+								skip;
+						fi
+					}
+				:: else ->
+					nodePointer = NULL;
+					break;
+			fi
+		od
+		if
+			:: nodePointer != NULL -> gNumofPopped = gNumofPopped + 1;
+			:: else -> skip;
+		fi
+	}
+	atomic {
+		gEndCount = gEndCount + 1;
+	}
+}
+
+init
+{
+	int index;
+	NodePointer nodePointer;
+
+	// initialize
+	atomic
+	{
+		for(index : 0 .. (MAX_OF_NODES - 1)) {
+			gNodes[index].next = NULL;
+		}
+		gStack.top = NULL;
+		gNumofPushed = 0;
+		gNumofPopped = 0;
+		gNumofRemained = 0;
+		gEndCount = 0;
+
+		run push();
+		run pop();
+	}
+
+	// post-condition
+	if
+		:: gEndCount == 2 ->
+			assert(gNumofPushed == MAX_OF_NODES);
+			gNumofRemained = gNumofPushed - gNumofPopped;
+			nodePointer = gStack.top;
+			for(index : 0 .. (gNumofRemained - 1)) {
+				assert(nodePointer != NULL);
+				nodePointer = gNodes[nodePointer].next;
+			}
+			assert(nodePointer == NULL);
+	fi
+}
