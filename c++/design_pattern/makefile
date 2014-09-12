@@ -1,8 +1,13 @@
-all: *.o
+
+OBJS = \
+	   $(addsuffix .o, $(basename $(wildcard *.cpp))) \
+	   $(FRC)
+
+all: $(OBJS)
 
 clean:
-	rm *.o
+	rm -f *.o
 
 %.o: %.cpp
-	g++ -c $^
+	$(CXX) -c $^
 
