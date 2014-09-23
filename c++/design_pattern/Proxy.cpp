@@ -22,6 +22,11 @@ class Subject
 {
 };
 
+// Proxyオブジェクトがその代理を務めることになる実オブジェクトを定義する。
+class RealSubject : public Subject
+{
+};
+
 // RealSubjectオブジェクトを利用できるところならばどこでもProxyオブジェクトを利用できるように、
 // RealSubjectクラスとProxyクラスに共通のインタフェースを定義する。
 class Proxy : public Subject
@@ -29,10 +34,5 @@ class Proxy : public Subject
 	protected:
 		RealSubject* realSubject_;
 		//Subject* realSubject_; // altanative
-};
-
-// Proxyオブジェクトがその代理を務めることになる実オブジェクトを定義する。
-class RealSubject : public Subject
-{
 };
 
