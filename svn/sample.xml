@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<log>
+  <logentry revision="9">
+    <author>yasukei</author>
+    <date>2015-01-20T17:29:22.949325Z</date>
+    <msg>merge r5 from branches/branch1</msg>
+    <trunk>Commit</trunk>
+    <branch1>Not Merged</branch1>
+  </logentry>
+  <logentry revision="8">
+    <author>yasukei</author>
+    <date>2015-01-20T16:40:38.620614Z</date>
+    <msg>add ddd.txt</msg>
+    <trunk>Commit</trunk>
+    <branch1>Not Merged</branch1>
+  </logentry>
+  <logentry revision="7">
+    <author>yasukei</author>
+    <date>2015-01-20T16:39:44.054676Z</date>
+    <msg>add ccc.txt</msg>
+    <trunk>Commit</trunk>
+    <branch1>Not Merged</branch1>
+  </logentry>
+  <logentry revision="3">
+    <author>yasukei</author>
+    <date>2015-01-20T16:34:40.111444Z</date>
+    <msg>add bbb.txt</msg>
+    <trunk>Commit</trunk>
+  </logentry>
+  <logentry revision="2">
+    <author>yasukei</author>
+    <date>2015-01-20T16:34:00.675476Z</date>
+    <msg>add aaa.txt</msg>
+    <trunk>Commit</trunk>
+  </logentry>
+  <logentry revision="1">
+    <author>yasukei</author>
+    <date>2015-01-20T16:31:29.654914Z</date>
+    <msg>first commit</msg>
+    <trunk>Commit</trunk>
+  </logentry>
+  <logentry revision="6">
+    <author>yasukei</author>
+    <date>2015-01-20T16:39:04.177720Z</date>
+    <msg>add BBB.txt</msg>
+    <branch1>Commit</branch1>
+    <trunk>Not Merged</trunk>
+  </logentry>
+  <logentry revision="5">
+    <author>yasukei</author>
+    <date>2015-01-20T16:38:41.019957Z</date>
+    <msg>add AAA.txt</msg>
+    <branch1>Commit</branch1>
+    <trunk>Merged</trunk>
+  </logentry>
+  <logentry revision="4">
+    <author>yasukei</author>
+    <date>2015-01-20T16:36:35.883985Z</date>
+    <msg>create branches/branch1</msg>
+    <branch1>Commit</branch1>
+    <trunk>Not Merged</trunk>
+  </logentry>
+</log>
