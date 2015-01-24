@@ -47,15 +47,13 @@ def make_randseq3(n, k):
 	return randseq
 
 class Config:
-	"""設定の抽象"""
-	def __init__(self, n=10, k=5, m=make_randseq1, q=False):
+	def __init__(self, n=10000000, k=1000000, m=make_randseq2, q=False):
 		self.n = n
 		self.k = k
 		self.m = m
 		self.q = q
 
 def parse_args():
-	"""コマンドライン引数を解析して、Configをreturnする"""
 	config = Config()
 
 	try:
