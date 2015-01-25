@@ -46,6 +46,19 @@ def make_randseq3(n, k):
 
 	return randseq
 
+def make_randseq4(n, k):
+	"""乱数列を生成　バージョン4"""
+	seq = [0] * n
+
+	for i in range(n):
+		seq[i] = i
+	for i in range(k):
+		seq[random.randint(i, len(seq) - 1)], seq[i] = seq[i], seq[random.randint(i, len(seq) - 1)]
+	for i in range(k, n):
+		seq.pop()
+
+	return seq
+
 class Config:
 	def __init__(self, n=10000000, k=1000000, m=make_randseq2, q=False):
 		self.n = n
@@ -74,6 +87,8 @@ def parse_args():
 				config.m = make_randseq2
 			elif a == "3":
 				config.m = make_randseq3
+			elif a == "4":
+				config.m = make_randseq4
 			else:
 				assert False, "invalid option"
 		elif o == "-q":
