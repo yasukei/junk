@@ -5,6 +5,7 @@
 
 import sys
 import getopt
+import p1_6_2
 
 def sort_uniqseq1(n, k, uniqseq=[]):
 	"""ソートアルゴリズム1"""
@@ -19,11 +20,24 @@ def sort_uniqseq1(n, k, uniqseq=[]):
 
 	return sorted_seq
 
+def sort_uniqseq2(n, k, uniqseq=[]):
+	"""ソートアルゴリズム2。1と比べて10倍遅い"""
+	bucket = p1_6_2.Nbits(n)
+	sorted_seq = []
+
+	for i in uniqseq:
+		bucket.set(i)
+	for i in range(bucket.n()):
+		if bucket.test(i) == 1:
+			sorted_seq.append(i)
+
+	return sorted_seq
+
 class Config:
 	def __init__(self, n=10000000, k=1000000, filename="", m=sort_uniqseq1, q=False):
 		self.n = n
 		self.k = k
-		self.filename = "p1-6-3input.txt"
+		self.filename = "p1_6_3_input.txt"
 		self.m = m
 		self.q = q
 
@@ -44,6 +58,8 @@ def parse_args():
 		elif o == "-m":
 			if a == "1":
 				config.m = sort_uniqseq1
+			elif a == "2":
+				config.m = sort_uniqseq2
 			else:
 				assert False, "invalid option"
 		elif o == "-q":

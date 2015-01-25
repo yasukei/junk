@@ -8,26 +8,23 @@ import math
 import unittest
 
 class Nbits:
+	"""任意のビット列を表現する。かなり遅い。python組み込みのリストの方が速い"""
+
 	def __init__(self, nbits=32):
 		self.nbits = nbits
-		self.bitof_elem = int(math.log(sys.maxint + 1, 2)) + 1
-		numof_elems = (nbits >> int(math.log(self.bitof_elem, 2))) + 1
+		bitof_elem = int(math.log(sys.maxint + 1, 2)) + 1
+		self.bit_mask_digit = int(math.log(bitof_elem, 2))
+		numof_elems = (nbits >> self.bit_mask_digit) + 1
 		self.elems = [0] * numof_elems
-		#print self.elems[0]
-		
+
 		self.bit_mask = 0
-		for i in range(int(math.log(self.bitof_elem, 2))):
+		for i in range(self.bit_mask_digit):
 			self.bit_mask = self.bit_mask | (1 << i)
 
 	def __get_elem_index(self, nbit):
-		return nbit >> int(math.log(self.bitof_elem, 2))
+		return nbit >> self.bit_mask_digit
 
 	def __get_index_in_elem(self, nbit):
-		#print sys._getframe().f_code.co_name
-		#print nbit
-		#print self.bitof_elem
-		#print (nbit >> self.bitof_elem) << self.bitof_elem
-		#print  nbit & self.bit_mask
 		return nbit & self.bit_mask
 
 	def __get_elem_bit(self, nbit):
@@ -39,23 +36,16 @@ class Nbits:
 		return self.nbits
 
 	def set(self, nbit):
-		#print sys._getframe().f_code.co_name
 		elem_index, index_in_elem = self.__get_elem_bit(nbit)
 		self.elems[elem_index] = self.elems[elem_index] | (1 << index_in_elem)
 
 	def reset(self, nbit):
-		#print sys._getframe().f_code.co_name
 		elem_index, index_in_elem = self.__get_elem_bit(nbit)
 		self.elems[elem_index] = self.elems[elem_index] & (0 << index_in_elem)
 
 	def test(self, nbit):
 		elem_index, index_in_elem = self.__get_elem_bit(nbit)
-		#print sys._getframe().f_code.co_name
-		#print elem_index
-		#print index_in_elem
-		#print self.elems[elem_index]
-		#print self.elems[elem_index] & (1 << index_in_elem)
-		return (self.elems[elem_index] & (1 << index_in_elem)) >> index_in_elem
+		return (self.elems[elem_index] >> index_in_elem) & 1
 
 class TestNbits(unittest.TestCase):
 	n = 0
