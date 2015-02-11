@@ -33,7 +33,6 @@ int main(void)
 	int prio = 0;
 	char buf[256];
 	int result;
-	mode_t omask;
 
 	mqattr.mq_flags = 0;
 	mqattr.mq_maxmsg = 1;
