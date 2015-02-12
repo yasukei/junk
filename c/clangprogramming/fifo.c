@@ -1,11 +1,20 @@
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <fcntl.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+
+//-----------------------------------------------------------------------------
+__inline static pid_t __gettid(void)
+{
+	return (pid_t)syscall(SYS_gettid);
+}
 
 //-----------------------------------------------------------------------------
 #define ERROR \
@@ -13,10 +22,10 @@
 	{\
 		int errnoSv = errno;\
 		fprintf(stderr,\
-				"ERROR: %s@%d, tid: [%u], errno: [%d] [%s]\n",\
+				"ERROR: %s@%d, tid: [%d], errno: [%d] [%s]\n",\
 				__FILE__,\
 				__LINE__,\
-				(unsigned int)pthread_self(),\
+				__gettid(),\
 				errnoSv,\
 				strerror(errnoSv)\
 			   );\
@@ -32,7 +41,7 @@ static void* __writer(void* arg)
 	int result;
 
 	fifo_in = open(fifo_name, O_WRONLY);
-	if(result == -1)
+	if(fifo_in == -1)
 	{
 		ERROR;
 		exit(EXIT_FAILURE);
@@ -63,7 +72,7 @@ static void* __reader(void* arg)
 	int result;
 
 	fifo_out = open(fifo_name, O_RDONLY);
-	if(result == -1)
+	if(fifo_out == -1)
 	{
 		ERROR;
 		exit(EXIT_FAILURE);
@@ -91,7 +100,6 @@ static void* __reader(void* arg)
 int main(void)
 {
 	const char* fifo_name = "/tmp/myfifo";
-	int fifo_out;
 	int result;
 	pthread_t writer, reader;
 
