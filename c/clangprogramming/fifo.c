@@ -1,36 +1,13 @@
-#include <unistd.h>
-#include <fcntl.h>
-
-#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 
-//-----------------------------------------------------------------------------
-__inline static pid_t __gettid(void)
-{
-	return (pid_t)syscall(SYS_gettid);
-}
-
-//-----------------------------------------------------------------------------
-#define ERROR \
-	do\
-	{\
-		int errnoSv = errno;\
-		fprintf(stderr,\
-				"ERROR: %s@%d, tid: [%d], errno: [%d] [%s]\n",\
-				__FILE__,\
-				__LINE__,\
-				__gettid(),\
-				errnoSv,\
-				strerror(errnoSv)\
-			   );\
-	}\
-	while(false)\
+#include "common.h"
 
 //-----------------------------------------------------------------------------
 static void* __writer(void* arg)
