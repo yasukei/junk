@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <unistd.h>
 #include <sys/syscall.h>
 
 //-----------------------------------------------------------------------------

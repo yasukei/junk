@@ -1,26 +1,11 @@
 #include <unistd.h>
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 
-//-----------------------------------------------------------------------------
-#define ERROR \
-	do\
-	{\
-		int errnoSv = errno;\
-		fprintf(stderr,\
-				"ERROR: %s@%d, tid: [%u], errno: [%d] [%s]\n",\
-				__FILE__,\
-				__LINE__,\
-				(unsigned int)pthread_self(),\
-				errnoSv,\
-				strerror(errnoSv)\
-			   );\
-	}\
-	while(false)\
+#include "common.h"
 
 //-----------------------------------------------------------------------------
 int main(void)
