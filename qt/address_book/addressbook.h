@@ -20,11 +20,15 @@ public slots:
 	void addContact();
 	void submitContact();
 	void cancel();
+	void next();
+	void previous();
 
 private:
 	QPushButton *addButton;
 	QPushButton *submitButton;
 	QPushButton *cancelButton;
+	QPushButton *nextButton;
+	QPushButton *previousButton;
 	QLineEdit *nameLine;
 	QTextEdit *addressText;
 
