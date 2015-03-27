@@ -52,8 +52,81 @@ def p003():
     for key, value in ordered.items():
         print str(key) + ', ' + str(value)
 
+def p004():
+    """
+    04. 元素記号
+    "Hi He Lied Because Boron Could Not Oxidize Fluorine. New Nations Might Also Sign Peace Security Clause. Arthur King Can."という文を単語に分解し，1, 5, 6, 7, 8, 9, 15, 16, 19番目の単語は先頭の1文字，それ以外の単語は先頭に2文字を取り出し，取り出した文字列から単語の位置（先頭から何番目の単語か）への連想配列（辞書型もしくはマップ型）を作成せよ．
+    """
+    sentence = "Hi He Lied Because Boron Could Not Oxidize Fluorine. New Nations Might Also Sign Peace Security Clause. Arthur King Can."
+    words = sentence.split()
+    need_only_one = [1, 5, 6, 7, 8, 9, 15, 16, 19]
+    table = OrderedDict()
+    for i, word in enumerate(words):
+        ith = i + 1
+        if ith in need_only_one:
+            chars = word[:1]
+        else:
+            chars = word[:2]
+        table[chars] = ith
+    print table
+
+def p005():
+    """
+    05. n-gram
+    与えられたシーケンス（文字列やリストなど）からn-gramを作る関数を作成せよ．この関数を用い，"I am an NLPer"という文から単語bi-gram，文字bi-gramを得よ．
+    """
+    sentence = "I am an NLPer"
+    word_bi_gram = make_n_gram(sentence, 2, 'word')
+    char_bi_gram = make_n_gram(sentence, 2, 'char')
+    print word_bi_gram
+    print char_bi_gram
+
+def make_n_gram(sentence, n=2, type='word'):
+    if type == 'word':
+        elems = sentence.split()
+        func = lambda x, y: x + ' ' + y
+    elif type == 'char':
+        elems = [sentence[i:i+1] for i in range(0, len(sentence))]
+        func = lambda x, y: x + y
+    else:
+        return None
+
+    n_gram = []
+    for i in range(0, len(elems)):
+        n_gram.append(reduce(func, elems[:n]))
+        elems = elems[1:]
+    return n_gram
+
+def p006():
+    """
+    06. 集合
+    "paraparaparadise"と"paragraph"に含まれる文字bi-gramの集合を，それぞれ, XとYとして求め，XとYの和集合，積集合，差集合を求めよ．さらに，'se'というbi-gramがXおよびYに含まれるかどうかを調べよ．
+    """
+    X = set(make_n_gram("paraparaparadise", 2, 'char'))
+    Y = set(make_n_gram("paragraph", 2, 'char'))
+    # 和集合
+    print X | Y
+    # 積集合
+    print X & Y
+    # 差集合
+    print X - Y
+    
+    if 'se' in X:   print 'include'
+    else:           print 'not include'
+
+    if 'se' in Y:   print 'include'
+    else:           print 'not include'
+
+def p007():
+    """
+    07. テンプレートによる文生成
+    引数x, y, zを受け取り「x時のyはz」という文字列を返す関数を実装せよ．さらに，x=12, y="気温", z=22.4として，実行結果を確認せよ．
+    """
+    pass
+
+
 def main():
-    default_number = 3
+    default_number = 6
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
@@ -65,18 +138,6 @@ if __name__ == '__main__':
     main()
 
 """
-04. 元素記号
-"Hi He Lied Because Boron Could Not Oxidize Fluorine. New Nations Might Also Sign Peace Security Clause. Arthur King Can."という文を単語に分解し，1, 5, 6, 7, 8, 9, 15, 16, 19番目の単語は先頭の1文字，それ以外の単語は先頭に2文字を取り出し，取り出した文字列から単語の位置（先頭から何番目の単語か）への連想配列（辞書型もしくはマップ型）を作成せよ．
-
-05. n-gram
-与えられたシーケンス（文字列やリストなど）からn-gramを作る関数を作成せよ．この関数を用い，"I am an NLPer"という文から単語bi-gram，文字bi-gramを得よ．
-
-06. 集合
-"paraparaparadise"と"paragraph"に含まれる文字bi-gramの集合を，それぞれ, XとYとして求め，XとYの和集合，積集合，差集合を求めよ．さらに，'se'というbi-gramがXおよびYに含まれるかどうかを調べよ．
-
-07. テンプレートによる文生成
-引数x, y, zを受け取り「x時のyはz」という文字列を返す関数を実装せよ．さらに，x=12, y="気温", z=22.4として，実行結果を確認せよ．
-
 08. 暗号文
 与えられた文字列の各文字を，以下の仕様で変換する関数cipherを実装せよ．
 
