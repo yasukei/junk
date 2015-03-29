@@ -7,6 +7,8 @@ import argparse
 import codecs
 from collections import Counter
 from collections import OrderedDict
+from string import Template
+import random
 
 def p000():
     """
@@ -43,7 +45,7 @@ def p003():
     """
     sentence = "Now I need a drink, alcoholic of course, after the heavy lectures involving quantum mechanics."
     sentence = string.lower(sentence)
-    chars = [sentence[i:i+1] for i in range(0, len(sentence))]
+    chars = str_to_chars(sentence)
     alphabets = [char for char in chars if char in string.lowercase]
     counter = Counter()
     for alpha in alphabets:
@@ -51,6 +53,9 @@ def p003():
     ordered = OrderedDict(sorted(counter.items(), key=lambda t: t[1], reverse=True))
     for key, value in ordered.items():
         print str(key) + ', ' + str(value)
+
+def str_to_chars(str):
+    return [str[i:i+1] for i in range(0, len(str))]
 
 def p004():
     """
@@ -86,7 +91,8 @@ def make_n_gram(sentence, n=2, type='word'):
         elems = sentence.split()
         func = lambda x, y: x + ' ' + y
     elif type == 'char':
-        elems = [sentence[i:i+1] for i in range(0, len(sentence))]
+        #elems = [sentence[i:i+1] for i in range(0, len(sentence))]
+        elems = str_to_chars(sentence)
         func = lambda x, y: x + y
     else:
         return None
@@ -122,11 +128,59 @@ def p007():
     07. テンプレートによる文生成
     引数x, y, zを受け取り「x時のyはz」という文字列を返す関数を実装せよ．さらに，x=12, y="気温", z=22.4として，実行結果を確認せよ．
     """
+    def make_string(x, y, z):
+        s = Template(u'${x}時の${y}は${z}')
+        return s.safe_substitute({ 'x' : x, 'y' : y, 'z' : z})
+
+    s = make_string(12, u"気温", 22.4)
+    sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
+    print s
+
+def p008():
+    """
+    08. 暗号文
+    与えられた文字列の各文字を，以下の仕様で変換する関数cipherを実装せよ．
+
+    英小文字ならば(219 - 文字コード)の文字に置換
+    その他の文字はそのまま出力
+    この関数を用い，英語のメッセージを暗号化・復号化せよ．
+    """
+    def cipher(message):
+        chars = str_to_chars(message)
+        ciphered = ''
+        for c in chars:
+            if c in string.ascii_lowercase:
+                ciphered += chr(219 - ord(c))
+            else:
+                ciphered += c
+        return ciphered
+
+    print cipher('Hello world!')
+                
+def p009():
+    """
+    09. Typoglycemia
+    スペースで区切られた単語列に対して，各単語の先頭と末尾の文字は残し，それ以外の文字の順序をランダムに並び替えるプログラムを作成せよ．ただし，長さが４以下の単語は並び替えないこととする．適当な英語の文（例えば"I couldn't believe that I could actually understand what I was reading : the phenomenal power of the human mind ."）を与え，その実行結果を確認せよ．
+    """
+    sentence = "I couldn't believe that I could actually understand what I was reading : the phenomenal power of the human mind ."
+    words = sentence.split()
+    typoglycemia = []
+    for word in words:
+        if len(word) <= 4:
+            typoglycemia.append(word)
+        else:
+            chars = str_to_chars(word[1:-1])
+            s = ''
+            while len(chars) > 0:
+                s += chars.pop(random.randint(0, len(chars) - 1))
+            typoglycemia.append(word[0] + s + word[-1])
+    typoglycemia = ' '.join(typoglycemia)
+    print typoglycemia
+
     pass
 
-
 def main():
-    default_number = 6
+    default_number = 9
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
@@ -138,13 +192,4 @@ if __name__ == '__main__':
     main()
 
 """
-08. 暗号文
-与えられた文字列の各文字を，以下の仕様で変換する関数cipherを実装せよ．
-
-英小文字ならば(219 - 文字コード)の文字に置換
-その他の文字はそのまま出力
-この関数を用い，英語のメッセージを暗号化・復号化せよ．
-
-09. Typoglycemia
-スペースで区切られた単語列に対して，各単語の先頭と末尾の文字は残し，それ以外の文字の順序をランダムに並び替えるプログラムを作成せよ．ただし，長さが４以下の単語は並び替えないこととする．適当な英語の文（例えば"I couldn't believe that I could actually understand what I was reading : the phenomenal power of the human mind ."）を与え，その実行結果を確認せよ．
 """
