@@ -96,7 +96,6 @@ def make_n_gram(sentence, n=2, type='word'):
         elems = sentence.split()
         func = lambda x, y: x + ' ' + y
     elif type == 'char':
-        #elems = [sentence[i:i+1] for i in range(0, len(sentence))]
         elems = str_to_chars(sentence)
         func = lambda x, y: x + y
     else:
@@ -210,11 +209,98 @@ def p011():
     with open('hightemp.txt', 'r') as f:
         lines = f.readlines()
         print ''.join([line.replace('\t', ' ') for line in lines])
+
+def p012():
+    """
+    12. 1列目をcol1.txtに，2列目をcol2.txtに保存
+    各行の1列目だけを抜き出したものをcol1.txtに，2列目だけを抜き出したものをcol2.txtとしてファイルに保存せよ．確認にはcutコマンドを用いよ．
+    """
+    subprocess.call(['cut', '-f1', 'hightemp.txt'])
+    subprocess.call(['cut', '-f2', 'hightemp.txt'])
+
+    lines = []
+    with open('hightemp.txt', 'r') as f:
+        lines = f.readlines()
+
+    with open('col1.txt', 'w') as f:
+        for line in lines:
+            f.write(line.split('\t')[0] + '\n')
+    with open('col2.txt', 'w') as f:
+        for line in lines:
+            f.write(line.split('\t')[1] + '\n')
+
+def p013():
+    """
+    13. col1.txtとcol2.txtをマージ
+    12で作ったcol1.txtとcol2.txtを結合し，元のファイルの1列目と2列目をタブ区切りで並べたテキストファイルを作成せよ．確認にはpasteコマンドを用いよ．
+    """
+    subprocess.call(['paste', 'col1.txt', 'col2.txt'])
+
+    col1_lines = []
+    with open('col1.txt', 'r') as f:
+        for line in f.readlines():
+            col1_lines.append(line.strip('\n'))
+
+    col2_lines = []
+    with open('col2.txt', 'r') as f:
+        for line in f.readlines():
+            col2_lines.append(line.strip('\n'))
+
+    with open('col1_col2.txt', 'w') as f:
+        for i in range(0, max(len(col1_lines), len(col2_lines))):
+            if i < len(col1_lines):
+                f.write(col1_lines[i])
+            f.write('\t')
+            if i < len(col2_lines):
+                f.write(col2_lines[i])
+            f.write('\n')
+
+def p014():
+    """
+    14. 先頭からN行を出力
+    自然数Nをコマンドライン引数などの手段で受け取り，入力のうち先頭のN行だけを表示せよ．確認にはheadコマンドを用いよ．
+    """
+    N = 3
+
+    subprocess.call(['head', '-n' + str(N), 'hightemp.txt'])
+
+    with open('hightemp.txt', 'r') as f:
+        lines = f.readlines()
+
+    for i, line in enumerate(lines):
+        if i >= N:
+            break
+        print line,
+
+def p015():
+    """
+    15. 末尾のN行を出力
+    自然数Nをコマンドライン引数などの手段で受け取り，入力のうち末尾のN行だけを表示せよ．確認にはtailコマンドを用いよ．
+    """
+    N = 3
+
+    subprocess.call(['tail', '-n' + str(N), 'hightemp.txt'])
+
+    with open('hightemp.txt', 'r') as f:
+        lines = f.readlines()
+
+    if N < len(lines):
+        start = len(lines) - N
+    else:
+        start = 0
+    for i in range(start, len(lines)):
+        print lines[i],
+
+def p016():
+    """
+    16. ファイルをN分割する
+    自然数Nをコマンドライン引数などの手段で受け取り，入力のファイルを行単位でN分割せよ．同様の処理をsplitコマンドで実現せよ．
+    """
     pass
 
 
 def main():
-    default_number = 11
+    default_number = 15
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
@@ -226,21 +312,6 @@ if __name__ == '__main__':
     main()
 
 """
-12. 1列目をcol1.txtに，2列目をcol2.txtに保存
-各行の1列目だけを抜き出したものをcol1.txtに，2列目だけを抜き出したものをcol2.txtとしてファイルに保存せよ．確認にはcutコマンドを用いよ．
-
-13. col1.txtとcol2.txtをマージ
-12で作ったcol1.txtとcol2.txtを結合し，元のファイルの1列目と2列目をタブ区切りで並べたテキストファイルを作成せよ．確認にはpasteコマンドを用いよ．
-
-14. 先頭からN行を出力
-自然数Nをコマンドライン引数などの手段で受け取り，入力のうち先頭のN行だけを表示せよ．確認にはheadコマンドを用いよ．
-
-15. 末尾のN行を出力
-自然数Nをコマンドライン引数などの手段で受け取り，入力のうち末尾のN行だけを表示せよ．確認にはtailコマンドを用いよ．
-
-16. ファイルをN分割する
-自然数Nをコマンドライン引数などの手段で受け取り，入力のファイルを行単位でN分割せよ．同様の処理をsplitコマンドで実現せよ．
-
 17. １列目の文字列の異なり
 1列目の文字列の種類（異なる文字列の集合）を求めよ．確認にはsort, uniqコマンドを用いよ．
 
