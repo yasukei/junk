@@ -27,7 +27,6 @@ def p001():
     01. 「パタトクカシーー」
     「パタトクカシーー」という文字列の1,3,5,7文字目を取り出して連結した文字列を得よ．
     """
-    sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
     print u"パタトクカシーー"[::2]
 
 def p002():
@@ -35,7 +34,6 @@ def p002():
     02. 「パトカー」＋「タクシー」＝「パタトクカシーー」
     「パトカー」＋「タクシー」の文字を先頭から交互に連結して文字列「パタトクカシーー」を得よ．
     """
-    sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
     x = u'パトカー'
     y = u'タクシー'
     z = u''
@@ -137,7 +135,6 @@ def p007():
         return s.safe_substitute({ 'x' : x, 'y' : y, 'z' : z})
 
     s = make_string(12, u"気温", 22.4)
-    sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
     print s
 
 def p008():
@@ -304,14 +301,46 @@ def p016():
     division = line_number / N + 1
     subprocess.call(['split', '-l' + str(division), '-d', 'hightemp.txt', 'hightemp.txt.'])
 
+def p017():
+    """
+    17. １列目の文字列の異なり
+    1列目の文字列の種類（異なる文字列の集合）を求めよ．確認にはsort, uniqコマンドを用いよ．
+    """
+    pipe1 = subprocess.Popen(['cut', '-f1', 'hightemp.txt'], stdout=subprocess.PIPE)
+    pipe2 = subprocess.Popen(['sort'], stdin=pipe1.stdout, stdout=subprocess.PIPE)
+    subprocess.Popen(['uniq', '-c'], stdin=pipe2.stdout)
+
+    lines = []
+    with open('hightemp.txt', 'r') as f:
+        for line in f.readlines():
+            lines.append(line.decode('utf-8'))
+    col1 = set()
+    delimiter = '\t'
+    for line in lines:
+        col1.add(line.split(delimiter)[0])
+    for elem in col1:
+        print elem
+
+def p018():
+    """
+    18. 各行を3コラム目の数値の降順にソート
+    各行を3コラム目の数値の逆順で整列せよ（注意: 各行の内容は変更せずに並び替えよ）．確認にはsortコマンドを用いよ（この問題はコマンドで実行した時の結果と合わなくてもよい）．
+    """
     pass
 
+def divide_to_cols(lines, delimiter):
+    col = []
+    cols = []
+    for line in lines:
+        line.split(delimiter)
+    pass
 
 def main():
-    default_number = 16
+    default_number = 17
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
+    sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
 
     func = globals()['p' + '%03d' % args.number]
     func()
@@ -320,12 +349,6 @@ if __name__ == '__main__':
     main()
 
 """
-17. １列目の文字列の異なり
-1列目の文字列の種類（異なる文字列の集合）を求めよ．確認にはsort, uniqコマンドを用いよ．
-
-18. 各行を3コラム目の数値の降順にソート
-各行を3コラム目の数値の逆順で整列せよ（注意: 各行の内容は変更せずに並び替えよ）．確認にはsortコマンドを用いよ（この問題はコマンドで実行した時の結果と合わなくてもよい）．
-
 19. 各行の1コラム目の文字列の出現頻度を求め，出現頻度の高い順に並べる
 各行の1列目の文字列の出現頻度を求め，その高い順に並べて表示せよ．確認にはcut, uniq, sortコマンドを用いよ．
 """
