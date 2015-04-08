@@ -296,11 +296,19 @@ def p016():
     16. ファイルをN分割する
     自然数Nをコマンドライン引数などの手段で受け取り，入力のファイルを行単位でN分割せよ．同様の処理をsplitコマンドで実現せよ．
     """
+    N = 5
+
+    pipe1 = subprocess.Popen(['wc', '-l', 'hightemp.txt'], stdout=subprocess.PIPE)
+    pipe2 = subprocess.Popen(['cut', '-f1', '-d '], stdin=pipe1.stdout, stdout=subprocess.PIPE)
+    line_number = int(pipe2.stdout.readline())
+    division = line_number / N + 1
+    subprocess.call(['split', '-l' + str(division), '-d', 'hightemp.txt', 'hightemp.txt.'])
+
     pass
 
 
 def main():
-    default_number = 15
+    default_number = 16
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
