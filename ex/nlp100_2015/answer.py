@@ -301,6 +301,20 @@ def p016():
     division = line_number / N + 1
     subprocess.call(['split', '-l' + str(division), '-d', 'hightemp.txt', 'hightemp.txt.'])
 
+    lines = []
+    with open('hightemp.txt', 'r') as f:
+        for line in f.readlines():
+            lines.append(line.decode('utf-8'))
+    division = len(lines) / N + 1
+    files = []
+    for i in range(0, division):
+        f = lines[i*division:(i+1)*division]
+        files.append(f)
+    for f in files:
+        for line in f:
+            print line,
+        print
+
 def p017():
     """
     17. １列目の文字列の異なり
@@ -326,17 +340,45 @@ def p018():
     18. 各行を3コラム目の数値の降順にソート
     各行を3コラム目の数値の逆順で整列せよ（注意: 各行の内容は変更せずに並び替えよ）．確認にはsortコマンドを用いよ（この問題はコマンドで実行した時の結果と合わなくてもよい）．
     """
-    pass
+    subprocess.Popen(['sort', '-k3,3', '-r', 'hightemp.txt'])
 
-def divide_to_cols(lines, delimiter):
-    col = []
-    cols = []
+    matrix = []
+    delimiter = '\t'
+    with open('hightemp.txt', 'r') as f:
+        for line in f.readlines():
+            matrix.append(line.decode('utf-8').split(delimiter))
+
+    matrix.sort(key=lambda row: row[2], reverse=True)
+    for row in matrix:
+        print delimiter.join(row),
+
+def p019():
+    """
+    19. 各行の1コラム目の文字列の出現頻度を求め，出現頻度の高い順に並べる
+    各行の1列目の文字列の出現頻度を求め，その高い順に並べて表示せよ．確認にはcut, uniq, sortコマンドを用いよ．
+    """
+    pipe1 = subprocess.Popen(['cut', '-f1', 'hightemp.txt'], stdout=subprocess.PIPE)
+    pipe2 = subprocess.Popen(['sort'], stdin=pipe1.stdout, stdout=subprocess.PIPE)
+    pipe3 = subprocess.Popen(['uniq', '-c'], stdin=pipe2.stdout, stdout=subprocess.PIPE)
+    subprocess.Popen(['sort', '-r'], stdin=pipe3.stdout)
+
+    lines = []
+    with open('hightemp.txt', 'r') as f:
+        for line in f.readlines():
+            lines.append(line.decode('utf-8'))
+
+    counter = Counter()
+    delimiter = '\t'
     for line in lines:
-        line.split(delimiter)
+        counter[line.split(delimiter)[0]] += 1
+    ordered = OrderedDict(sorted(counter.items(), key=lambda t: t[1], reverse=True))
+    for key, value in ordered.items():
+        print key + u', ' + unicode(value)
+
     pass
 
 def main():
-    default_number = 17
+    default_number = 16
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
@@ -347,11 +389,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-"""
-19. 各行の1コラム目の文字列の出現頻度を求め，出現頻度の高い順に並べる
-各行の1列目の文字列の出現頻度を求め，その高い順に並べて表示せよ．確認にはcut, uniq, sortコマンドを用いよ．
-"""
 
 """
 第3章: 正規表現
