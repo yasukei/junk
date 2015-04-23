@@ -11,6 +11,7 @@ from string import Template
 import random
 import subprocess
 import json
+import re
 
 """
 第1章: 準備運動
@@ -391,10 +392,8 @@ Wikipediaの記事を以下のフォーマットで書き出したファイルja
 Wikipedia記事のJSONファイルを読み込み，「イギリス」に関する記事本文を表示せよ．問題21-29では，ここで抽出した記事本文に対して実行せよ．
 """
 def p020():
-    with open('jawiki-country.json', 'r') as f:
-        for j in parse_json_string(f.read()):
-            if j['title'] == u'イギリス':
-                print j['text']
+    uk = get_json_by_title_from_file(u'イギリス', 'jawiki-country.json')
+    print uk['text']
 
 def parse_json_string(string):
     """
@@ -406,19 +405,37 @@ def parse_json_string(string):
         yield obj
         string = string[idx:].lstrip()
 
+def get_json_by_title_from_file(title, filepath):
+    with open(filepath, 'r') as f:
+        for j in parse_json_string(f.read()):
+            if j['title'] == title:
+                return j
+    return None
+
 """
 21. カテゴリ名を含む行を抽出
 記事中でカテゴリ名を宣言している行を抽出せよ．
 """
 def p021():
-    pass
+    uk = get_json_by_title_from_file(u'イギリス', 'jawiki-country.json')
+
+    category_lines = []
+    for line in uk['text'].split('\n'):
+        if 'category' in line.lower():
+            category_lines.append(line)
+            print line
 
 """
 22. カテゴリ名の抽出
 記事のカテゴリ名を（行単位ではなく名前で）抽出せよ．
 """
 def p022():
-    pass
+    uk = get_json_by_title_from_file(u'イギリス', 'jawiki-country.json')
+
+    category_names = re.findall(r'\[\[Category:(.*)\]\]', uk['text'])
+
+    for category_name in category_names:
+        print category_name
 
 """
 23. セクション構造
@@ -470,7 +487,7 @@ def p029():
     pass
 
 def main():
-    default_number = 20
+    default_number = 22
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
