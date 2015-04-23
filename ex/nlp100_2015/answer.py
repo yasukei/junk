@@ -10,6 +10,7 @@ from collections import OrderedDict
 from string import Template
 import random
 import subprocess
+import json
 
 """
 第1章: 準備運動
@@ -390,7 +391,21 @@ Wikipediaの記事を以下のフォーマットで書き出したファイルja
 Wikipedia記事のJSONファイルを読み込み，「イギリス」に関する記事本文を表示せよ．問題21-29では，ここで抽出した記事本文に対して実行せよ．
 """
 def p020():
-    pass
+    decoder = json.JSONDecoder()
+    with open('jawiki-country.json', 'r') as f:
+        for j in parse_json_string(f.read()):
+            if j['title'] == u'イギリス':
+                print j['text']
+
+def parse_json_string(string):
+    """
+    refer: http://stackoverflow.com/questions/26620714/json-loads-valueerror-extra-data-in-python
+    """
+    decoder = json.JSONDecoder()
+    while string:
+        obj, idx = decoder.raw_decode(string)
+        yield obj
+        string = string[idx:].lstrip()
 
 """
 21. カテゴリ名を含む行を抽出
@@ -460,6 +475,7 @@ def main():
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
+
     sys.stdout = codecs.getwriter('utf_8')(sys.stdout)
 
     func = globals()['p' + '%03d' % args.number]
