@@ -456,7 +456,11 @@ def p023():
 記事から参照されているメディアファイルをすべて抜き出せ．
 """
 def p024():
-    pass
+    uk = get_json_by_title_from_file(u'イギリス', u'jawiki-country.json')
+    file_names = re.findall(r'\[\[File:(.*?)\|', uk['text'])
+
+    for file_name in file_names:
+        print file_name
 
 """
 25. テンプレートの抽出
@@ -494,7 +498,7 @@ def p029():
     pass
 
 def main():
-    default_number = 23
+    default_number = 24
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
