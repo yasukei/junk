@@ -431,7 +431,6 @@ def p021():
 """
 def p022():
     uk = get_json_by_title_from_file(u'イギリス', 'jawiki-country.json')
-
     category_names = re.findall(r'\[\[Category:(.*)\]\]', uk['text'])
 
     for category_name in category_names:
@@ -442,7 +441,15 @@ def p022():
 記事中に含まれるセクション名とそのレベル（例えば"== セクション名 =="なら1）を表示せよ．
 """
 def p023():
-    pass
+    uk = get_json_by_title_from_file(u'イギリス', u'jawiki-country.json')
+    get_section = lambda text: re.search(r'^(?P<prefix>=+)(?P<name>.+)(?P=prefix)$', text, re.MULTILINE)
+
+    position = 0
+    m = get_section(uk['text'][position:])
+    while m:
+        print str(len(m.group('prefix'))) + ' ' + m.group('name')
+        position += m.end()
+        m = get_section(uk['text'][position:])
 
 """
 24. ファイル参照の抽出
@@ -487,7 +494,7 @@ def p029():
     pass
 
 def main():
-    default_number = 22
+    default_number = 23
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
