@@ -467,7 +467,24 @@ def p024():
 記事中に含まれる「基礎情報」テンプレートのフィールド名と値を抽出し，辞書オブジェクトとして格納せよ．
 """
 def p025():
-    pass
+    uk = get_json_by_title_from_file(u'イギリス', u'jawiki-country.json')
+    basic_info = re.search(u'^\{\{基礎情報.*^\}\}$', uk['text'], re.DOTALL | re.MULTILINE)
+
+    get_field = lambda text: re.search(r'^\|(?P<key>.+?)\s*=\s*(?P<value>.+?)^[|}]', text, re.DOTALL | re.MULTILINE)
+
+    d = {}
+    position = 0
+    m = get_field(basic_info.group()[position:])
+    while m:
+        d[m.group('key')] = m.group('value').rstrip()
+        position += m.end() - 1
+        m = get_field(basic_info.group()[position:])
+
+    print u'numof_keys: ' + str(len(d))
+    for k, v in d.iteritems():
+        print u'key:   ' + k
+        print u'value: ' + v
+        print
 
 """
 26. 強調マークアップの除去
@@ -498,7 +515,7 @@ def p029():
     pass
 
 def main():
-    default_number = 24
+    default_number = 25
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
