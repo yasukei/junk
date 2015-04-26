@@ -472,26 +472,35 @@ def p025():
 
     get_field = lambda text: re.search(r'^\|(?P<key>.+?)\s*=\s*(?P<value>.+?)^[|}]', text, re.DOTALL | re.MULTILINE)
 
-    d = {}
+    dic = {}
     position = 0
     m = get_field(basic_info.group()[position:])
     while m:
-        d[m.group('key')] = m.group('value').rstrip()
+        dic[m.group('key')] = m.group('value').rstrip()
         position += m.end() - 1
         m = get_field(basic_info.group()[position:])
 
-    print u'numof_keys: ' + str(len(d))
-    for k, v in d.iteritems():
+    print u'numof_keys: ' + str(len(dic))
+    for k, v in dic.iteritems():
         print u'key:   ' + k
         print u'value: ' + v
         print
+
+    return dic
 
 """
 26. 強調マークアップの除去
 25の処理時に，テンプレートの値からMediaWikiの強調マークアップ（弱い強調，強調，強い強調のすべて）を除去してテキストに変換せよ（参考: マークアップ早見表）．
 """
 def p026():
-    pass
+    dic = p025()
+
+    r = r'(?P<quote>\'+)(?P<text>.*)(?P=quote)'
+    for k, v in dic.iteritems():
+        m = re.search(r, v)
+        if m:
+            dic[k] = re.sub(r, m.group('text'), v)
+    return dic
 
 """
 27. 内部リンクの除去
@@ -515,7 +524,7 @@ def p029():
     pass
 
 def main():
-    default_number = 25
+    default_number = 26
     parser = argparse.ArgumentParser(description='言語処理100本ノック2015')
     parser.add_argument('-n', '--number', nargs='?', default=default_number, type=int, help='問題の番号')
     args = parser.parse_args()
