@@ -1,5 +1,8 @@
 all: pong
 
 run: 
-	./pong
+	sudo ./pong localhost
+
+clean:
+	rm -f ./pong
 
