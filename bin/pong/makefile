@@ -1,3 +1,5 @@
+CXXFLAGS+= -Wall
+
 all: pong
 
 run: 
