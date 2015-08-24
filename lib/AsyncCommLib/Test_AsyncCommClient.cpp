@@ -1,9 +1,8 @@
-//extern "C"
-//{
-//#include "AsyncCommClient.h"
-//#include "private.h"
-//}
-#include "AsyncCommClient.hpp"
+extern "C"
+{
+#include "AsyncCommClient.h"
+#include "private.h"
+}
 #include "private.h"
 
 #include <sys/select.h>
@@ -285,7 +284,7 @@ static void* __SockServer_run(void* arg)
 class Test_AsyncCommClientCallbacks_create : public ::testing::Test
 { 
 	protected:
-		ACCCallbacks* callbacks;
+		AsyncCommClientCallbacks* callbacks;
 };
 
 // ------------------------------------------------------------------
@@ -294,10 +293,10 @@ TEST_F(Test_AsyncCommClientCallbacks_create, success)
 	// precondition
 
 	// target
-	callbacks = ACCCallbacks::create();
+	callbacks = AsyncCommClientCallbacks_create();
 
 	// postcondition
-	EXPECT_NE((ACCCallbacks*)NULL, callbacks);
+	EXPECT_NE((AsyncCommClientCallbacks*)NULL, callbacks);
 }
 
 // ------------------------------------------------------------------
@@ -307,15 +306,15 @@ class Test_AsyncCommClient_create : public ::testing::Test
 { 
 	protected:
 		AsyncCommClient* acc;
-		ACCConfig* config;
+		AsyncCommClientConfig* accConfig;
 
 		virtual void SetUp()
 		{
-			config = ACCConfig::create();
+			accConfig = AsyncCommClientConfig_create();
 		}
 		virtual void TearDown()
 		{
-			delete(config);
+			AsyncCommClientConfig_delete(accConfig);
 		}
 };
 
@@ -323,10 +322,10 @@ class Test_AsyncCommClient_create : public ::testing::Test
 TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_zero)
 {
 	// precondition
-	config->set_numof_concurrent_send(0);
+	AsyncCommClientConfig_setNumofConcurrentSend(accConfig, 0);
 
 	// target
-	acc = AsyncCommClient::create(config);
+	acc = AsyncCommClient_create(accConfig);
 
 	// postcondition
 	EXPECT_EQ((AsyncCommClient*)NULL, acc);
@@ -336,10 +335,10 @@ TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_zero)
 TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
 {
 	// precondition
-	config->set_numof_concurrent_send(1);
+	AsyncCommClientConfig_setNumofConcurrentSend(accConfig, 1);
 
 	// target
-	acc = AsyncCommClient::create(config);
+	acc = AsyncCommClient_create(accConfig);
 
 	// postcondition
 	EXPECT_NE((AsyncCommClient*)NULL, acc);

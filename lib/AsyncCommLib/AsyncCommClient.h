@@ -22,8 +22,23 @@ enum eAsyncCommClientResult
 // ------------------------------------------------------------------
 // struct
 // ------------------------------------------------------------------
+typedef struct AsyncCommClientConfig AsyncCommClientConfig;
 typedef struct AsyncCommClientCallbacks AsyncCommClientCallbacks;
 typedef struct AsyncCommClient AsyncCommClient;
+
+// ------------------------------------------------------------------
+// AsyncCommClientConfig I/F
+// ------------------------------------------------------------------
+AsyncCommClientConfig* AsyncCommClientConfig_create(
+	void
+	);
+void AsyncCommClientConfig_delete(
+	AsyncCommClientConfig* self
+	);
+bool AsyncCommClientConfig_setNumofConcurrentSend(
+	AsyncCommClientConfig* self,
+	uint32_t numofConcurrentSend
+	);
 
 // ------------------------------------------------------------------
 // AsyncCommClientCallbacks I/F
@@ -47,7 +62,9 @@ void AsyncCommClientCallbacks_delete(AsyncCommClientCallbacks* self);
 // ------------------------------------------------------------------
 // AsyncCommClient I/F
 // ------------------------------------------------------------------
-AsyncCommClient* AsyncCommClient_create(int numofConcurrentSend);
+AsyncCommClient* AsyncCommClient_create(
+	AsyncCommClientConfig* config
+	);
 bool AsyncCommClient_connectServer(
 	AsyncCommClient* self,
 	int family,
@@ -62,8 +79,15 @@ bool AsyncCommClient_send(
 	size_t sizeofSendData,
 	uint32_t* sendId
 	);
-bool AsyncCommClient_cancel(AsyncCommClient* self, uint32_t* sendId);
-void AsyncCommClient_disconnectServer(AsyncCommClient* self);
-void AsyncCommClient_delete(AsyncCommClient* self);
+bool AsyncCommClient_cancel(
+	AsyncCommClient* self,
+	uint32_t sendId
+	);
+void AsyncCommClient_disconnectServer(
+	AsyncCommClient* self
+	);
+void AsyncCommClient_delete(
+	AsyncCommClient* self
+	);
 
 #endif /* ASYNCCOMMCLIENT_H_ */
