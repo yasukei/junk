@@ -23,8 +23,8 @@ using std::vector;
 // ------------------------------------------------------------------
 // Constant
 // ------------------------------------------------------------------
-const unsigned short cTestServerPortNumber = 12345;
-const char* cTestServerAddress = "127.0.0.1";
+const unsigned short cSockServerPortNumber = 12345;
+const char* cSockServerAddress = "127.0.0.1";
 
 // ------------------------------------------------------------------
 // Helper function
@@ -33,10 +33,10 @@ const char* cTestServerAddress = "127.0.0.1";
 // ------------------------------------------------------------------
 // Helper class
 // ------------------------------------------------------------------
-class TestServerConfig;
-class TestServer;
+class SockServerConfig;
+class SockServer;
 
-class TestServerConfig
+class SockServerConfig
 {
 	public:
 		int family;
@@ -60,51 +60,51 @@ class TestServerConfig
 		}
 };
 
-static void* __TestServer_run(void* arg);
+static void* __SockServer_run(void* arg);
 
-class TestServer
+class SockServer
 {
-	friend void* __TestServer_run(void* arg);
+	friend void* __SockServer_run(void* arg);
 
 	protected:
-		pthread_t thread;
-		int serverSocket, peerSocket;
+		pthread_t thread_;
+		int serverSocket_, peerSocket_;
 
-		pthread_mutex_t mutex;
-		pthread_cond_t condvar;
-		bool connected;
+		pthread_mutex_t mutex_;
+		pthread_cond_t condvar_;
+		bool connected_;
 
-		bool stopRequested;
-		static const long pollingPeriodMicroSec = 100;
+		bool stopRequested_;
+		static const long pollingPeriodMicroSec_ = 100;
 
 		void lock(void)
 		{
-			pthread_mutex_lock(&this->mutex);
+			pthread_mutex_lock(&mutex_);
 		}
 
 		void unlock(void)
 		{
-			pthread_mutex_unlock(&this->mutex);
+			pthread_mutex_unlock(&mutex_);
 		}
 
-		bool openServerSocket(struct TestServerConfig* config)
+		bool openServerSocket(struct SockServerConfig* config)
 		{
 			struct sockaddr_in serverAddr;
 
-			if((this->serverSocket = socket(config->family, SOCK_STREAM, 0)) == -1)
+			if((serverSocket_ = socket(config->family, SOCK_STREAM, 0)) == -1)
 			{
 				__printErrnoDetails(errno); DEBUGPOINT;
 				return false;
 			}
 
 			config->setSockAddrIn(&serverAddr);
-			if(bind(this->serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1)
+			if(bind(serverSocket_, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1)
 			{
 				__printErrnoDetails(errno); DEBUGPOINT;
 				return false;
 			}
 
-			if(listen(this->serverSocket, 1) == -1)
+			if(listen(serverSocket_, 1) == -1)
 			{
 				__printErrnoDetails(errno); DEBUGPOINT;
 				return false;
@@ -115,7 +115,7 @@ class TestServer
 
 		void closeServerSocket(void)
 		{
-			close(this->serverSocket);
+			close(serverSocket_);
 		}
 
 		void waitForConnect(void)
@@ -124,22 +124,22 @@ class TestServer
 			struct timeval timeout;
 			int result;
 
-			while(! this->stopRequested)
+			while(! stopRequested_)
 			{
 				FD_ZERO(&fds);
-				FD_SET(this->serverSocket, &fds);
+				FD_SET(serverSocket_, &fds);
 				timeout.tv_sec = 0;
-				timeout.tv_usec = this->pollingPeriodMicroSec;
+				timeout.tv_usec = pollingPeriodMicroSec_;
 				
-				result = select(this->serverSocket + 1, &fds, NULL, NULL, &timeout);
-				if((result > 0) && FD_ISSET(this->serverSocket, &fds))
+				result = select(serverSocket_ + 1, &fds, NULL, NULL, &timeout);
+				if((result > 0) && FD_ISSET(serverSocket_, &fds))
 				{
 					break;
 				}
 				else if(result == -1)
 				{
 					__printErrnoDetails(errno); DEBUGPOINT;
-					this->stopRequested = true;
+					stopRequested_ = true;
 				}
 			}
 		}
@@ -149,21 +149,21 @@ class TestServer
 			struct sockaddr_in peerAddr;
 			socklen_t sizeofPeerAddr = sizeof(peerAddr);
 
-			this->peerSocket = accept(
-					this->serverSocket,
+			peerSocket_ = accept(
+					serverSocket_,
 					(struct sockaddr*)&peerAddr,
 					&sizeofPeerAddr
 					);
-			if(this->peerSocket == -1)
+			if(peerSocket_ == -1)
 			{
 				__printErrnoDetails(errno); DEBUGPOINT;
 				return;
 			}
 
-			this->lock();
-			this->connected = true;
-			pthread_cond_broadcast(&this->condvar);
-			this->unlock();
+			lock();
+			connected_ = true;
+			pthread_cond_broadcast(&condvar_);
+			unlock();
 		}
 
 		void communicateWithPeer(void)
@@ -172,11 +172,11 @@ class TestServer
 			//const int BUFFER_SIZE = 256;
 			//char buffer[BUFFER_SIZE];
 
-			while(! this->stopRequested) {
-				usleep(this->pollingPeriodMicroSec);
-				//numrcv = recv(this->peerSocket, buffer, BUFFER_SIZE, MSG_DONTWAIT); 
+			while(! stopRequested_) {
+				usleep(pollingPeriodMicroSec_);
+				//numrcv = recv(peerSocket_, buffer, BUFFER_SIZE, MSG_DONTWAIT); 
 				//if(numrcv == 0 || numrcv == -1) {
-				//	close(peerSocket);
+				//	close(peerSocket_);
 				//	DEBUG_POINT("Connection closed\n");
 				//	break;
 				//}
@@ -186,61 +186,61 @@ class TestServer
 
 		void disestablishPeerConnection(void)
 		{
-			close(this->peerSocket);
+			close(peerSocket_);
 		}
 
 		void run(void)
 		{
 			DEBUG_POINT("the server is running...\n");
-			while(! this->stopRequested)
+			while(! stopRequested_)
 			{
-				this->waitForConnect();
-				if(this->stopRequested)
+				waitForConnect();
+				if(stopRequested_)
 				{
 					break;
 				}
 				DEBUG_POINT("a connection request came in\n");
 
-				this->establishPeerConnection();
+				establishPeerConnection();
 				DEBUG_POINT("a new connection was established\n");
 
-				this->communicateWithPeer();
-				this->disestablishPeerConnection();
+				communicateWithPeer();
+				disestablishPeerConnection();
 				DEBUG_POINT("the connection was disestablished\n");
 			}
 
-			this->closeServerSocket();
+			closeServerSocket();
 			DEBUG_POINT("the server is stopping...\n");
 		}
 
 	public:
-		TestServer(void)
-			:serverSocket(0),
-			peerSocket(0),
-			mutex(PTHREAD_MUTEX_INITIALIZER),
-			condvar(PTHREAD_COND_INITIALIZER),
-			connected(false),
-			stopRequested(false)
+		SockServer(void)
+			:serverSocket_(0),
+			peerSocket_(0),
+			mutex_(PTHREAD_MUTEX_INITIALIZER),
+			condvar_(PTHREAD_COND_INITIALIZER),
+			connected_(false),
+			stopRequested_(false)
 		{}
 
-		~TestServer(void)
+		~SockServer(void)
 		{
-			this->stop();
-			pthread_mutex_destroy(&this->mutex);
-			pthread_cond_destroy(&this->condvar);
+			stop();
+			pthread_mutex_destroy(&mutex_);
+			pthread_cond_destroy(&condvar_);
 		}
 
-		bool start(struct TestServerConfig* config)
+		bool start(struct SockServerConfig* config)
 		{
-			this->connected = false;
-			this->stopRequested = false;
+			connected_ = false;
+			stopRequested_ = false;
 
-			if(! this->openServerSocket(config))
+			if(! openServerSocket(config))
 			{
 				DEBUGPOINT;
 				return false;
 			}
-			if(pthread_create(&this->thread, NULL, __TestServer_run, this) != 0)
+			if(pthread_create(&thread_, NULL, __SockServer_run, this) != 0)
 			{
 				DEBUGPOINT;
 				return false;
@@ -251,29 +251,29 @@ class TestServer
 
 		void waitForConnected(void)
 		{
-			this->lock();
-			while(! this->connected)
+			lock();
+			while(! connected_)
 			{
-				pthread_cond_wait(&this->condvar, &this->mutex);
+				pthread_cond_wait(&condvar_, &mutex_);
 			}
-			this->unlock();
+			unlock();
 		}
 
 		bool isConnected(void)
 		{
-			return this->connected;
+			return connected_;
 		}
 
 		void stop(void)
 		{
-			this->stopRequested = true;
-			(void)pthread_join(thread, NULL);
+			stopRequested_ = true;
+			(void)pthread_join(thread_, NULL);
 		}
 };
 
-static void* __TestServer_run(void* arg)
+static void* __SockServer_run(void* arg)
 {
-	TestServer* testServer = (TestServer*)arg;
+	SockServer* testServer = (SockServer*)arg;
 
 	testServer->run();
 	return NULL;
@@ -354,15 +354,15 @@ TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
 //		AsyncCommClient* self;
 //		int numofConcurrentSend;
 //		bool ret;
-//		TestServer* testServer;
-//		TestServerConfig* config;
+//		SockServer* testServer;
+//		SockServerConfig* config;
 //
 //		virtual void SetUp(void)
 //		{
-//			testServer = new TestServer();
-//			config = new TestServerConfig();
+//			testServer = new SockServer();
+//			config = new SockServerConfig();
 //			config->family = AF_INET;
-//			config->port = cTestServerPortNumber;
+//			config->port = cSockServerPortNumber;
 //		}
 //
 //		virtual void TearDown(void)
@@ -385,7 +385,7 @@ TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
 //	ret = AsyncCommClient_connectServer(
 //			self,
 //			eAsyncCommClientAddressFamily_INET,
-//			cTestServerAddress,
+//			cSockServerAddress,
 //			config->port,
 //			""
 //			);
@@ -437,15 +437,15 @@ TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
 //		vector<unsigned char> sendData;
 //		uint32_t sendId;
 //		NormalCallbackResult* callbackResult;
-//		TestServer* testServer;
-//		TestServerConfig* config;
+//		SockServer* testServer;
+//		SockServerConfig* config;
 //
 //		virtual void SetUp(void)
 //		{
-//			testServer = new TestServer();
-//			config = new TestServerConfig();
+//			testServer = new SockServer();
+//			config = new SockServerConfig();
 //			config->family = AF_INET;
-//			config->port = cTestServerPortNumber;
+//			config->port = cSockServerPortNumber;
 //			testServer->start(config);
 //
 //			numofConcurrentSend = 1;
@@ -453,7 +453,7 @@ TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
 //			AsyncCommClient_connectServer(
 //				self,
 //				eAsyncCommClientAddressFamily_INET,
-//				cTestServerAddress,
+//				cSockServerAddress,
 //				config->port,
 //				""
 //				);
