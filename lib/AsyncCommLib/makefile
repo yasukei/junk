@@ -1,10 +1,10 @@
-TEST_TARGET = Test_AsyncCommClient
+TEST_TARGET = AsyncCommClient_test
 
 SRC_OBJS = \
 	AsyncCommClient.o
 
 TEST_OBJS = \
-	Test_AsyncCommClient.o
+	AsyncCommClient_test.o
 
 INCLUDE_DIRS = \
 	.
