@@ -78,12 +78,9 @@ TEST_F(MemoryReflector_destroy_test, invalid_arguments)
 // ------------------------------------------------------------------
 // MemoryReflector_enregister_test
 // ------------------------------------------------------------------
-//class MemoryReflector_enregister_test : public MemoryReflector_destroy_test
-class MemoryReflector_enregister_test : public ::testing::Test
+class MemoryReflector_enregister_test : public MemoryReflector_destroy_test
 { 
 	protected:
-		MemoryReflector* reflector;
-
 		ReflectionAttribute reflectionAttr;
 		bool ret;
 
