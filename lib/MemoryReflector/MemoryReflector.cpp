@@ -240,11 +240,22 @@ void MemoryReflector::reflectDst(
 	Reflection* reflection;
 
 	for( iter = reflectionsMapByDstContext_.find(context);
-		( (iter != reflectionsMapBySrcContext_.end()) && (iter->first == context) );
+		( (iter != reflectionsMapByDstContext_.end()) && (iter->first == context) );
 		iter++ )
 	{
 		reflection = iter->second;
 		reflection->reflectDst();
 	}
+}
+
+// ------------------------------------------------------------------
+void MemoryReflector::__debugprint(
+	void
+	)
+{
+	fprintf(stdout, "reflectionsMapBySrcContext_.size(): [%d]\n",
+		reflectionsMapBySrcContext_.size());
+	fprintf(stdout, "reflectionsMapByDstContext_.size(): [%d]\n",
+		reflectionsMapByDstContext_.size());
 }
 

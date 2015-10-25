@@ -170,6 +170,66 @@ TEST_F(MemoryReflector_reflect_test, success)
 }
 
 // ------------------------------------------------------------------
+TEST_F(MemoryReflector_reflect_test, success_2_areas)
+{
+	int src1, src2;
+	int dst1, dst2;
+
+	// precondition
+	reflectionAttr.srcAddr = &src1;
+	reflectionAttr.dstAddr = &dst1;
+	reflectionAttr.srcContext = pthread_self();
+	reflectionAttr.dstContext = pthread_self();
+	reflectionAttr.sizeofBytes = sizeof(int);
+	EXPECT_TRUE(reflector->enregister(reflectionAttr));
+	reflectionAttr.srcAddr = &src2;
+	reflectionAttr.dstAddr = &dst2;
+	EXPECT_TRUE(reflector->enregister(reflectionAttr));
+	src1 = src2 = 1;
+	dst1 = dst2 = 0;
+
+	// target
+	reflector->reflectSrc(pthread_self());
+	reflector->reflectDst(pthread_self());
+
+	// postcondition
+	EXPECT_EQ(src1, dst1);
+	EXPECT_EQ(src2, dst2);
+}
+
+// ------------------------------------------------------------------
+TEST_F(MemoryReflector_reflect_test, success_3_areas)
+{
+	int src1, src2, src3;
+	int dst1, dst2, dst3;
+
+	// precondition
+	reflectionAttr.srcAddr = &src1;
+	reflectionAttr.dstAddr = &dst1;
+	reflectionAttr.srcContext = pthread_self();
+	reflectionAttr.dstContext = pthread_self();
+	reflectionAttr.sizeofBytes = sizeof(int);
+	EXPECT_TRUE(reflector->enregister(reflectionAttr));
+	reflectionAttr.srcAddr = &src2;
+	reflectionAttr.dstAddr = &dst2;
+	EXPECT_TRUE(reflector->enregister(reflectionAttr));
+	reflectionAttr.srcAddr = &src3;
+	reflectionAttr.dstAddr = &dst3;
+	EXPECT_TRUE(reflector->enregister(reflectionAttr));
+	src1 = src2 = src3 = 1;
+	dst1 = dst2 = dst3 = 0;
+
+	// target
+	reflector->reflectSrc(pthread_self());
+	reflector->reflectDst(pthread_self());
+
+	// postcondition
+	EXPECT_EQ(src1, dst1);
+	EXPECT_EQ(src2, dst2);
+	EXPECT_EQ(src3, dst3);
+}
+
+// ------------------------------------------------------------------
 TEST_F(MemoryReflector_reflect_test, reflect_src_only)
 {
 	int src;

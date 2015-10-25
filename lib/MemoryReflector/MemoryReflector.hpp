@@ -74,8 +74,10 @@ class MemoryReflector
 		void reflectDst(ReflectionContext context);
 
 	protected:
-		std::map<ReflectionContext, Reflection*> reflectionsMapBySrcContext_;
-		std::map<ReflectionContext, Reflection*> reflectionsMapByDstContext_;
+		std::multimap<ReflectionContext, Reflection*> reflectionsMapBySrcContext_;
+		std::multimap<ReflectionContext, Reflection*> reflectionsMapByDstContext_;
+
+		void __debugprint(void);
 		//~MemoryReflector() {};
 
 		//MemoryReflector(const MemoryReflector& rhs);
