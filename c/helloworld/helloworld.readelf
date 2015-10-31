@@ -1,0 +1,226 @@
+ELF ヘッダ:
+  マジック:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  クラス:                            ELF32
+  データ:                            2 の補数、リトルエンディアン
+  バージョン:                        1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI バージョン:                    0
+  型:                                EXEC (実行可能ファイル)
+  マシン:                            Intel 80386
+  バージョン:                        0x1
+  エントリポイントアドレス:               0x8048320
+  プログラムの開始ヘッダ:          52 (バイト)
+  セクションヘッダ始点:          4468 (バイト)
+  フラグ:                            0x0
+  このヘッダのサイズ:                52 (バイト)
+  プログラムヘッダサイズ:            32 (バイト)
+  プログラムヘッダ数:                9
+  セクションヘッダ:                  40 (バイト)
+  セクションヘッダサイズ:            30
+  セクションヘッダ文字列表索引:      27
+
+セクションヘッダ:
+  [番] 名前              タイプ          アドレス Off    サイズ ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048154 000154 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048168 000168 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048188 000188 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        080481ac 0001ac 000020 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481cc 0001cc 000050 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          0804821c 00021c 00004a 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          08048266 000266 00000a 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         08048270 000270 000020 00   A  6   1  4
+  [ 9] .rel.dyn          REL             08048290 000290 000008 08   A  5   0  4
+  [10] .rel.plt          REL             08048298 000298 000018 08   A  5  12  4
+  [11] .init             PROGBITS        080482b0 0002b0 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        080482e0 0002e0 000040 04  AX  0   0 16
+  [13] .text             PROGBITS        08048320 000320 000192 00  AX  0   0 16
+  [14] .fini             PROGBITS        080484b4 0004b4 000014 00  AX  0   0  4
+  [15] .rodata           PROGBITS        080484c8 0004c8 000014 00   A  0   0  4
+  [16] .eh_frame_hdr     PROGBITS        080484dc 0004dc 00002c 00   A  0   0  4
+  [17] .eh_frame         PROGBITS        08048508 000508 0000b0 00   A  0   0  4
+  [18] .init_array       INIT_ARRAY      08049f08 000f08 000004 00  WA  0   0  4
+  [19] .fini_array       FINI_ARRAY      08049f0c 000f0c 000004 00  WA  0   0  4
+  [20] .jcr              PROGBITS        08049f10 000f10 000004 00  WA  0   0  4
+  [21] .dynamic          DYNAMIC         08049f14 000f14 0000e8 08  WA  6   0  4
+  [22] .got              PROGBITS        08049ffc 000ffc 000004 04  WA  0   0  4
+  [23] .got.plt          PROGBITS        0804a000 001000 000018 04  WA  0   0  4
+  [24] .data             PROGBITS        0804a018 001018 000008 00  WA  0   0  4
+  [25] .bss              NOBITS          0804a020 001020 000004 00  WA  0   0  1
+  [26] .comment          PROGBITS        00000000 001020 00004d 01  MS  0   0  1
+  [27] .shstrtab         STRTAB          00000000 00106d 000106 00      0   0  1
+  [28] .symtab           SYMTAB          00000000 001624 000430 10     29  45  4
+  [29] .strtab           STRTAB          00000000 001a54 000255 00      0   0  1
+フラグのキー:
+  W (write), A (alloc), X (実行), M (merge), S (文字列)
+  I (情報), L (リンク順), G (グループ), T (TLS), E (排他), x (不明)
+  O (追加の OS 処理が必要) o (OS 固有), p (プロセッサ固有)
+
+このファイルにはセクショングループがありません。
+
+プログラムヘッダ:
+  タイプ       オフセット 仮想Addr   物理Addr   FileSiz MemSiz  Flg Align
+  PHDR           0x000034 0x08048034 0x08048034 0x00120 0x00120 R E 0x4
+  INTERP         0x000154 0x08048154 0x08048154 0x00013 0x00013 R   0x1
+      [Requesting program interpreter: /lib/ld-linux.so.2]
+  LOAD           0x000000 0x08048000 0x08048000 0x005b8 0x005b8 R E 0x1000
+  LOAD           0x000f08 0x08049f08 0x08049f08 0x00118 0x0011c RW  0x1000
+  DYNAMIC        0x000f14 0x08049f14 0x08049f14 0x000e8 0x000e8 RW  0x4
+  NOTE           0x000168 0x08048168 0x08048168 0x00044 0x00044 R   0x4
+  GNU_EH_FRAME   0x0004dc 0x080484dc 0x080484dc 0x0002c 0x0002c R   0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x10
+  GNU_RELRO      0x000f08 0x08049f08 0x08049f08 0x000f8 0x000f8 R   0x1
+
+ セグメントマッピングへのセクション:
+  セグメントセクション...
+   00     
+   01     .interp 
+   02     .interp .note.ABI-tag .note.gnu.build-id .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rel.dyn .rel.plt .init .plt .text .fini .rodata .eh_frame_hdr .eh_frame 
+   03     .init_array .fini_array .jcr .dynamic .got .got.plt .data .bss 
+   04     .dynamic 
+   05     .note.ABI-tag .note.gnu.build-id 
+   06     .eh_frame_hdr 
+   07     
+   08     .init_array .fini_array .jcr .dynamic .got 
+
+Dynamic section at offset 0xf14 contains 24 entries:
+  タグ        タイプ                       名前/値
+ 0x00000001 (NEEDED)                     共有ライブラリ: [libc.so.6]
+ 0x0000000c (INIT)                       0x80482b0
+ 0x0000000d (FINI)                       0x80484b4
+ 0x00000019 (INIT_ARRAY)                 0x8049f08
+ 0x0000001b (INIT_ARRAYSZ)               4 (バイト)
+ 0x0000001a (FINI_ARRAY)                 0x8049f0c
+ 0x0000001c (FINI_ARRAYSZ)               4 (バイト)
+ 0x6ffffef5 (GNU_HASH)                   0x80481ac
+ 0x00000005 (STRTAB)                     0x804821c
+ 0x00000006 (SYMTAB)                     0x80481cc
+ 0x0000000a (STRSZ)                      74 (バイト)
+ 0x0000000b (SYMENT)                     16 (バイト)
+ 0x00000015 (DEBUG)                      0x0
+ 0x00000003 (PLTGOT)                     0x804a000
+ 0x00000002 (PLTRELSZ)                   24 (バイト)
+ 0x00000014 (PLTREL)                     REL
+ 0x00000017 (JMPREL)                     0x8048298
+ 0x00000011 (REL)                        0x8048290
+ 0x00000012 (RELSZ)                      8 (バイト)
+ 0x00000013 (RELENT)                     8 (バイト)
+ 0x6ffffffe (VERNEED)                    0x8048270
+ 0x6fffffff (VERNEEDNUM)                 1
+ 0x6ffffff0 (VERSYM)                     0x8048266
+ 0x00000000 (NULL)                       0x0
+
+再配置セクション '.rel.dyn' (オフセット 0x290) は 1 個のエントリから構成されています:
+ オフセット 情報    型              シンボル値 シンボル名
+08049ffc  00000206 R_386_GLOB_DAT    00000000   __gmon_start__
+
+再配置セクション '.rel.plt' (オフセット 0x298) は 3 個のエントリから構成されています:
+ オフセット 情報    型              シンボル値 シンボル名
+0804a00c  00000107 R_386_JUMP_SLOT   00000000   puts
+0804a010  00000207 R_386_JUMP_SLOT   00000000   __gmon_start__
+0804a014  00000307 R_386_JUMP_SLOT   00000000   __libc_start_main
+
+The decoding of unwind sections for machine type Intel 80386 is not currently supported.
+
+シンボルテーブル '.dynsym' は 5 個のエントリから構成されています:
+   番号:      値 サイズ タイプ  Bind   Vis      索引名
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND puts@GLIBC_2.0 (2)
+     2: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@GLIBC_2.0 (2)
+     4: 080484cc     4 OBJECT  GLOBAL DEFAULT   15 _IO_stdin_used
+
+シンボルテーブル '.symtab' は 67 個のエントリから構成されています:
+   番号:      値 サイズ タイプ  Bind   Vis      索引名
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 08048154     0 SECTION LOCAL  DEFAULT    1 
+     2: 08048168     0 SECTION LOCAL  DEFAULT    2 
+     3: 08048188     0 SECTION LOCAL  DEFAULT    3 
+     4: 080481ac     0 SECTION LOCAL  DEFAULT    4 
+     5: 080481cc     0 SECTION LOCAL  DEFAULT    5 
+     6: 0804821c     0 SECTION LOCAL  DEFAULT    6 
+     7: 08048266     0 SECTION LOCAL  DEFAULT    7 
+     8: 08048270     0 SECTION LOCAL  DEFAULT    8 
+     9: 08048290     0 SECTION LOCAL  DEFAULT    9 
+    10: 08048298     0 SECTION LOCAL  DEFAULT   10 
+    11: 080482b0     0 SECTION LOCAL  DEFAULT   11 
+    12: 080482e0     0 SECTION LOCAL  DEFAULT   12 
+    13: 08048320     0 SECTION LOCAL  DEFAULT   13 
+    14: 080484b4     0 SECTION LOCAL  DEFAULT   14 
+    15: 080484c8     0 SECTION LOCAL  DEFAULT   15 
+    16: 080484dc     0 SECTION LOCAL  DEFAULT   16 
+    17: 08048508     0 SECTION LOCAL  DEFAULT   17 
+    18: 08049f08     0 SECTION LOCAL  DEFAULT   18 
+    19: 08049f0c     0 SECTION LOCAL  DEFAULT   19 
+    20: 08049f10     0 SECTION LOCAL  DEFAULT   20 
+    21: 08049f14     0 SECTION LOCAL  DEFAULT   21 
+    22: 08049ffc     0 SECTION LOCAL  DEFAULT   22 
+    23: 0804a000     0 SECTION LOCAL  DEFAULT   23 
+    24: 0804a018     0 SECTION LOCAL  DEFAULT   24 
+    25: 0804a020     0 SECTION LOCAL  DEFAULT   25 
+    26: 00000000     0 SECTION LOCAL  DEFAULT   26 
+    27: 00000000     0 FILE    LOCAL  DEFAULT  ABS crtstuff.c
+    28: 08049f10     0 OBJECT  LOCAL  DEFAULT   20 __JCR_LIST__
+    29: 08048360     0 FUNC    LOCAL  DEFAULT   13 deregister_tm_clones
+    30: 08048390     0 FUNC    LOCAL  DEFAULT   13 register_tm_clones
+    31: 080483d0     0 FUNC    LOCAL  DEFAULT   13 __do_global_dtors_aux
+    32: 0804a020     1 OBJECT  LOCAL  DEFAULT   25 completed.6591
+    33: 08049f0c     0 OBJECT  LOCAL  DEFAULT   19 __do_global_dtors_aux_fin
+    34: 080483f0     0 FUNC    LOCAL  DEFAULT   13 frame_dummy
+    35: 08049f08     0 OBJECT  LOCAL  DEFAULT   18 __frame_dummy_init_array_
+    36: 00000000     0 FILE    LOCAL  DEFAULT  ABS helloworld.c
+    37: 00000000     0 FILE    LOCAL  DEFAULT  ABS crtstuff.c
+    38: 080485b4     0 OBJECT  LOCAL  DEFAULT   17 __FRAME_END__
+    39: 08049f10     0 OBJECT  LOCAL  DEFAULT   20 __JCR_END__
+    40: 00000000     0 FILE    LOCAL  DEFAULT  ABS 
+    41: 08049f0c     0 NOTYPE  LOCAL  DEFAULT   18 __init_array_end
+    42: 08049f14     0 OBJECT  LOCAL  DEFAULT   21 _DYNAMIC
+    43: 08049f08     0 NOTYPE  LOCAL  DEFAULT   18 __init_array_start
+    44: 0804a000     0 OBJECT  LOCAL  DEFAULT   23 _GLOBAL_OFFSET_TABLE_
+    45: 080484b0     2 FUNC    GLOBAL DEFAULT   13 __libc_csu_fini
+    46: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_deregisterTMCloneTab
+    47: 08048350     4 FUNC    GLOBAL HIDDEN    13 __x86.get_pc_thunk.bx
+    48: 0804a018     0 NOTYPE  WEAK   DEFAULT   24 data_start
+    49: 0804a020     0 NOTYPE  GLOBAL DEFAULT   24 _edata
+    50: 080484b4     0 FUNC    GLOBAL DEFAULT   14 _fini
+    51: 0804a018     0 NOTYPE  GLOBAL DEFAULT   24 __data_start
+    52: 00000000     0 FUNC    GLOBAL DEFAULT  UND puts@@GLIBC_2.0
+    53: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+    54: 0804a01c     0 OBJECT  GLOBAL HIDDEN    24 __dso_handle
+    55: 080484cc     4 OBJECT  GLOBAL DEFAULT   15 _IO_stdin_used
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@@GLIBC_
+    57: 08048440    97 FUNC    GLOBAL DEFAULT   13 __libc_csu_init
+    58: 0804a024     0 NOTYPE  GLOBAL DEFAULT   25 _end
+    59: 08048320     0 FUNC    GLOBAL DEFAULT   13 _start
+    60: 080484c8     4 OBJECT  GLOBAL DEFAULT   15 _fp_hw
+    61: 0804a020     0 NOTYPE  GLOBAL DEFAULT   25 __bss_start
+    62: 0804841d    28 FUNC    GLOBAL DEFAULT   13 main
+    63: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _Jv_RegisterClasses
+    64: 0804a020     0 OBJECT  GLOBAL HIDDEN    24 __TMC_END__
+    65: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_registerTMCloneTable
+    66: 080482b0     0 FUNC    GLOBAL DEFAULT   11 _init
+
+`.gnu.hash' バケットリスト長の度数分布 (全 2 個のバケット):
+ 長さ  個数        占有率      範囲
+      0  1          ( 50.0%)
+      1  1          ( 50.0%)    100.0%
+
+Version symbols section '.gnu.version' contains 5 entries:
+ アドレス: 0000000008048266  オフセット: 0x000266  リンク: 5 (.dynsym)
+  000:   0 (*局 所*)       2 (GLIBC_2.0)     0 (*局 所*)       2 (GLIBC_2.0)  
+  004:   1 (*大 域*)   
+
+必要バージョンセクション '.gnu.version_r' は 1 個のエントリから構成されています:
+ アドレス: 0x0000000008048270  オフセット: 0x000270  リンク: 6 (.dynstr)
+  000000: バージョン: 1  ファイル: libc.so.6  個数: 1
+  0x0010:   名前: GLIBC_2.0  フラグ: なし  バージョン: 2
+
+Displaying notes found at file offset 0x00000168 with length 0x00000020:
+  所有者            データサイズ	説明
+  GNU                  0x00000010	NT_GNU_ABI_TAG (ABI バージョンタグ)
+    OS: Linux, ABI: 2.6.24
+
+Displaying notes found at file offset 0x00000188 with length 0x00000024:
+  所有者            データサイズ	説明
+  GNU                  0x00000014	NT_GNU_BUILD_ID (一意なビルドID ビット列)
+    ビルドID: c5598a3464bfa552de4979b559abf8bd37df232b
