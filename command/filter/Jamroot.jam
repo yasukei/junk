@@ -1,0 +1,7 @@
+using gcc ;
+
+lib boost_program_options : : <name>boost_program_options ;
+lib boost_iostreams : : <name>boost_iostreams ;
+
+exe main : main.cpp boost_program_options boost_iostreams ;
+
