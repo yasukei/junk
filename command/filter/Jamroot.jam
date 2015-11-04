@@ -1,7 +1,9 @@
-using gcc ;
+using gcc : : : <cxxflags>-std=c++11 ;
 
 lib boost_program_options : : <name>boost_program_options ;
 lib boost_iostreams : : <name>boost_iostreams ;
+lib boost_system : : <name>boost_system ;
+lib ncurses : : <name>ncurses ;
 
-exe main : main.cpp boost_program_options boost_iostreams ;
+exe main : main.cpp boost_program_options boost_iostreams boost_system ncurses ;
 
