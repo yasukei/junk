@@ -1,5 +1,33 @@
-//#ifndef ASYNCCOMMCLIENT_HPP_
-//#define ASYNCCOMMCLIENT_HPP_
+#ifndef ASYNCCOMMCLIENT_HPP_
+#define ASYNCCOMMCLIENT_HPP_
+
+#include <string>
+#include <cstdint>
+
+class AsyncCommClient
+{
+	public:
+		AsyncCommClient() {};
+		~AsyncCommClient() {};
+
+		bool connect(std::string hostname, uint16_t port_number);
+		//virtual bool send(
+		//			ACCCallbacks* callbacks,
+		//			unsigned char* sendData,
+		//			size_t sizeofSendData,
+		//			uint32_t* sendId
+		//			) = 0;
+		//virtual bool cancel(uint32_t sendId) = 0;
+		//virtual void disconnectServer() = 0;
+
+		// copyConstructor
+		//AsyncCommClient(const AsyncCommClient& rhs);
+		// substitution operator
+		//AsyncCommClient& operator=(const AsyncCommClient& rhs);
+};
+
+#endif /* ASYNCCOMMCLIENT_HPP_ */
+
 //
 //#include <cstdint>
 //#include <cstddef>
@@ -46,31 +74,4 @@
 //};
 //
 //// ------------------------------------------------------------------
-//class AsyncCommClient
-//{
-//	public:
-//		static AsyncCommClient* create(ACCConfig* config);
-//		~AsyncCommClient() {};
 //
-//		virtual bool connectServer(
-//					int family,
-//					const char* serverName,
-//					uint16_t port,
-//					const char* unixDomainName
-//					) = 0;
-//		virtual bool send(
-//					ACCCallbacks* callbacks,
-//					unsigned char* sendData,
-//					size_t sizeofSendData,
-//					uint32_t* sendId
-//					) = 0;
-//		virtual bool cancel(uint32_t sendId) = 0;
-//		virtual void disconnectServer() = 0;
-//
-//		// copyConstructor
-//		//AsyncCommClient(const AsyncCommClient& rhs);
-//		// substitution operator
-//		//AsyncCommClient& operator=(const AsyncCommClient& rhs);
-//};
-//
-//#endif /* ASYNCCOMMCLIENT_HPP_ */

@@ -1,14 +1,55 @@
 
-#include <gtest/gtest.h>
+#include <AsyncCommClient.hpp>
 
-class aaa_test : public ::testing::Test
-{
+#include <gtest/gtest.h>
+#include <boost/asio.hpp>
+
+namespace asio = boost::asio;
+using asio::ip::tcp;
+
+// ------------------------------------------------------------------
+// AsyncCommClient_test
+// ------------------------------------------------------------------
+class AsyncCommClient_test : public ::testing::Test
+{ 
+	//protected:
+	//	AsyncCommClient acc;
+
+	//	virtual void SetUp()
+	//	{
+	//	}
+	//	virtual void TearDown()
+	//	{
+	//	}
 };
 
-TEST_F(aaa_test, bbb)
+TEST_F(AsyncCommClient_test, connect)
 {
-	EXPECT_TRUE(true);
+	AsyncCommClient acc;
+	asio::io_service io_service;
+	bool result = false;
+
+	// precondition
+	tcp::acceptor server(io_service, tcp::endpoint(tcp::v4(), 10000));
+	tcp::socket socket(io_service);
+	server.async_accept(socket, [&](boost::system::error_code error){ std::cout << "ccc" << std::endl; result = true; });
+
+	puts("aaa");
+	// target
+	//acc.connect(std::string("localhost"), uint16_t(10000));
+	acc.connect(std::string("127.0.0.1"), uint16_t(10000));
+	puts("bbb");
+
+	// postcondition
+	io_service.run();
+	EXPECT_TRUE(result);
 }
+
+//TEST_F(AsyncCommClient_test, connect)
+//{
+//	// target
+//	//acc.connect(std::string("localhost"), uint16_t(10000));
+//}
 
 //extern "C"
 //{
@@ -394,51 +435,6 @@ TEST_F(aaa_test, bbb)
 //	EXPECT_NE((AsyncCommClientCallbacks*)NULL, callbacks);
 //}
 //
-//// ------------------------------------------------------------------
-//// Test_AsyncCommClient_create
-//// ------------------------------------------------------------------
-//class Test_AsyncCommClient_create : public ::testing::Test
-//{ 
-//	protected:
-//		AsyncCommClient* acc;
-//		AsyncCommClientConfig* accConfig;
-//
-//		virtual void SetUp()
-//		{
-//			accConfig = AsyncCommClientConfig_create();
-//		}
-//		virtual void TearDown()
-//		{
-//			AsyncCommClientConfig_delete(accConfig);
-//		}
-//};
-//
-//// ------------------------------------------------------------------
-//TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_zero)
-//{
-//	// precondition
-//	AsyncCommClientConfig_setNumofConcurrentSend(accConfig, 0);
-//
-//	// target
-//	acc = AsyncCommClient_create(accConfig);
-//
-//	// postcondition
-//	EXPECT_EQ((AsyncCommClient*)NULL, acc);
-//}
-//
-//// ------------------------------------------------------------------
-//TEST_F(Test_AsyncCommClient_create, numofConcurrentSend_is_one)
-//{
-//	// precondition
-//	AsyncCommClientConfig_setNumofConcurrentSend(accConfig, 1);
-//
-//	// target
-//	acc = AsyncCommClient_create(accConfig);
-//
-//	// postcondition
-//	EXPECT_NE((AsyncCommClient*)NULL, acc);
-//}
-
 //// ------------------------------------------------------------------
 //// Test_AsyncCommClient_connectServer
 //// ------------------------------------------------------------------

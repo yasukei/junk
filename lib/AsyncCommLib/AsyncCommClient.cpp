@@ -1,3 +1,32 @@
+#include <AsyncCommClient.hpp>
+
+#include <boost/asio.hpp>
+
+namespace asio = boost::asio;
+using asio::ip::tcp;
+
+// ------------------------------------------------------------------
+// AsyncCommClient
+// ------------------------------------------------------------------
+bool AsyncCommClient::connect(
+	std::string hostname,
+	uint16_t port_number
+	)
+{
+	asio::io_service io_service;
+	tcp::socket socket(io_service);
+
+	boost::system::error_code error;
+	socket.connect(tcp::endpoint(asio::ip::address::from_string(hostname), port_number), error);
+
+	if (error)
+	{
+		std::cout << error.message() << std::endl;	// FIXME: cout
+		return false;
+	}
+	return true;
+}
+
 //#include <vector>
 //using namespace std;
 //
@@ -16,7 +45,6 @@
 //#include <arpa/inet.h>
 //#include <unistd.h>
 //
-//#include "AsyncCommClient.hpp"
 //#include "private.h"
 //
 //// ------------------------------------------------------------------
@@ -756,20 +784,5 @@
 //	)
 //{
 //	return false;
-//}
-//
-//// ------------------------------------------------------------------
-//// AsyncCommClient
-//// ------------------------------------------------------------------
-//AsyncCommClient* AsyncCommClient::create(
-//	ACCConfig* config
-//	)
-//{
-//	if(config->get_numof_concurrent_send() == 0)
-//	{
-//		return NULL;
-//	}
-//
-//	return new AsyncCommClientImpl(config);
 //}
 //
