@@ -1,0 +1,40 @@
+#using gcc : : : <cxxflags>-std=c++11 ;
+using gcc : : : <linkflags>-pthread ;
+
+import testing ;
+
+#lib boost_program_options : : <name>boost_program_options ;
+#lib boost_iostreams : : <name>boost_iostreams ;
+#lib boost_system : : <name>boost_system ;
+
+lib gtestgmock
+	:
+	gmock-1.7.0/src/gmock-all.cc
+	gmock-1.7.0/gtest/src/gtest-all.cc
+	gmock-1.7.0/gtest/src/gtest_main.cc
+	:
+	<include>gmock-1.7.0/include
+	<include>gmock-1.7.0
+	<include>gmock-1.7.0/gtest/include
+	<include>gmock-1.7.0/gtest
+	<link>static
+	#:
+	#:
+	#<include>gmock-1.7.0/gtest/include
+	;
+
+lib AsyncCommClient
+	:
+	AsyncCommClient.cpp
+	;
+
+#unit-test AsyncCommClient_test : AsyncCommClient_test.cpp AsyncCommClient ;
+unit-test AsyncCommClient_test
+	:
+	AsyncCommClient_test.cpp
+	AsyncCommClient
+	gtestgmock
+	:
+	<include>gmock-1.7.0/gtest/include
+	;
+
