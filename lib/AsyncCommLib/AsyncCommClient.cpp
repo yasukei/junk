@@ -15,13 +15,27 @@ bool AsyncCommClient::connect(
 {
 	asio::io_service io_service;
 	tcp::socket socket(io_service);
+	boost::system::error_code ec;
+	std::stringstream ss;
+	std::string port_number_str;
 
-	boost::system::error_code error;
-	socket.connect(tcp::endpoint(asio::ip::address::from_string(hostname), port_number), error);
+	tcp::resolver resolver(io_service);
+	ss << port_number;
+	ss >> port_number_str;
+	tcp::resolver::query query(hostname, port_number_str);
 
-	if (error)
+	try
 	{
-		std::cout << error.message() << std::endl;	// FIXME: cout
+		for( tcp::resolver::iterator it = resolver.resolve(query);
+				it != tcp::resolver::iterator();
+				it++)
+		{
+			socket.connect(*it);
+		}
+	}
+	catch (std::exception &e)
+	{
+		std::cerr << e.what() << std::endl;		// FIXME
 		return false;
 	}
 	return true;

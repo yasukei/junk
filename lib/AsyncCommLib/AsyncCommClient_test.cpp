@@ -10,40 +10,77 @@ using asio::ip::tcp;
 // ------------------------------------------------------------------
 // AsyncCommClient_test
 // ------------------------------------------------------------------
-class AsyncCommClient_test : public ::testing::Test
+class AsyncCommClient_connect_test : public ::testing::TestWithParam<
+			std::tuple< std::string, bool >
+		>
 { 
-	//protected:
-	//	AsyncCommClient acc;
-
-	//	virtual void SetUp()
-	//	{
-	//	}
-	//	virtual void TearDown()
-	//	{
-	//	}
+	protected:
+		virtual void SetUp()
+		{
+		}
+		virtual void TearDown()
+		{
+		}
 };
 
-TEST_F(AsyncCommClient_test, connect)
+TEST_P(AsyncCommClient_connect_test, _)
 {
-	AsyncCommClient acc;
-	asio::io_service io_service;
-	bool result = false;
+	AsyncCommClient acc_;
+	asio::io_service io_service_;
+	uint16_t server_port_ = 10000;
+	bool server_connected_ = false;
+	::std::string hostname	= std::get<0>(GetParam());
+	bool expect_result		= std::get<1>(GetParam());
+	bool result;
 
 	// precondition
-	tcp::acceptor server(io_service, tcp::endpoint(tcp::v4(), 10000));
-	tcp::socket socket(io_service);
-	server.async_accept(socket, [&](boost::system::error_code error){ std::cout << "ccc" << std::endl; result = true; });
+	tcp::acceptor server(io_service_, tcp::endpoint(tcp::v4(), server_port_));
+	tcp::socket socket(io_service_);
+	server.async_accept(
+		socket,
+		[&](boost::system::error_code ec)
+		{
+			if (ec != boost::system::errc::success)
+			{
+				::std::cerr << ec.message() << ::std::endl;
+				return;
+			}
+			server_connected_ = true;
+		});
 
-	puts("aaa");
 	// target
-	//acc.connect(std::string("localhost"), uint16_t(10000));
-	acc.connect(std::string("127.0.0.1"), uint16_t(10000));
-	puts("bbb");
+	result = acc_.connect(hostname, uint16_t(server_port_));
 
 	// postcondition
-	io_service.run();
-	EXPECT_TRUE(result);
+	io_service_.poll();
+	EXPECT_EQ(expect_result, result);
+	EXPECT_EQ(result, server_connected_);
 }
+
+INSTANTIATE_TEST_CASE_P(
+	parameterized_instance,
+	AsyncCommClient_connect_test,
+	testing::Values(
+		// normal case
+		make_tuple(
+			::std::string("127.0.0.1"),	// hostname
+			bool(true)					// expect_result
+		),
+		make_tuple(
+			::std::string("localhost"),
+			bool(true)
+		),
+		// error case
+		make_tuple(
+			::std::string("999.999.999.999"),
+			bool(false)
+		),
+		make_tuple(
+			::std::string("localhhhh"),
+			bool(false)
+		)
+	)
+);
 
 //TEST_F(AsyncCommClient_test, connect)
 //{

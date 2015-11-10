@@ -4,6 +4,8 @@
 #include <string>
 #include <cstdint>
 
+#define CP do { std::cerr << __FILE__ << "@" << __LINE__ << std::endl; } while (false);
+
 class AsyncCommClient
 {
 	public:
