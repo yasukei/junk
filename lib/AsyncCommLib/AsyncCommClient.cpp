@@ -15,11 +15,9 @@ bool AsyncCommClient::connect(
 {
 	asio::io_service io_service;
 	tcp::socket socket(io_service);
-	boost::system::error_code ec;
+	tcp::resolver resolver(io_service);
 	std::stringstream ss;
 	std::string port_number_str;
-
-	tcp::resolver resolver(io_service);
 	ss << port_number;
 	ss >> port_number_str;
 	tcp::resolver::query query(hostname, port_number_str);

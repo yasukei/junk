@@ -15,12 +15,8 @@ class AsyncCommClient_connect_test : public ::testing::TestWithParam<
 		>
 { 
 	protected:
-		virtual void SetUp()
-		{
-		}
-		virtual void TearDown()
-		{
-		}
+		virtual void SetUp() {}
+		virtual void TearDown() {}
 };
 
 TEST_P(AsyncCommClient_connect_test, _)
@@ -29,7 +25,7 @@ TEST_P(AsyncCommClient_connect_test, _)
 	asio::io_service io_service_;
 	uint16_t server_port_ = 10000;
 	bool server_connected_ = false;
-	::std::string hostname	= std::get<0>(GetParam());
+	std::string hostname	= std::get<0>(GetParam());
 	bool expect_result		= std::get<1>(GetParam());
 	bool result;
 
@@ -42,7 +38,7 @@ TEST_P(AsyncCommClient_connect_test, _)
 		{
 			if (ec != boost::system::errc::success)
 			{
-				::std::cerr << ec.message() << ::std::endl;
+				std::cerr << ec.message() << std::endl;
 				return;
 			}
 			server_connected_ = true;
@@ -63,20 +59,20 @@ INSTANTIATE_TEST_CASE_P(
 	testing::Values(
 		// normal case
 		make_tuple(
-			::std::string("127.0.0.1"),	// hostname
+			std::string("127.0.0.1"),	// hostname
 			bool(true)					// expect_result
 		),
 		make_tuple(
-			::std::string("localhost"),
+			std::string("localhost"),
 			bool(true)
 		),
 		// error case
 		make_tuple(
-			::std::string("999.999.999.999"),
+			std::string("999.999.999.999"),
 			bool(false)
 		),
 		make_tuple(
-			::std::string("localhhhh"),
+			std::string("localhhhh"),
 			bool(false)
 		)
 	)
