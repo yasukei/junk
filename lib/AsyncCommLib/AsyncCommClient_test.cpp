@@ -78,6 +78,108 @@ INSTANTIATE_TEST_CASE_P(
 	)
 );
 
+class EchoServer
+{
+protected:
+	asio::io_service io_service_;
+	uint16_t server_port_;
+	tcp::acceptor server_;
+	tcp::socket socket_;
+	bool server_connected_;
+
+	EchoServer(void) :
+		server_port_(10000),
+		server_(io_service_, tcp::endpoint(tcp::v4(), server_port_)),
+		socket_(io_service_),
+		server_connected_(false)
+	{}
+	EchoServer(asio::io_service io_service);
+	~EchoServer();
+
+	void start_accept(void)
+	{
+		server_.async_accept(
+			socket_,
+			[&](boost::system::error_code ec)
+			{
+				if (ec != boost::system::errc::success)
+				{
+					std::cerr << ec.message() << std::endl;
+					return;
+				}
+				server_connected_ = true;
+			});
+	}
+};
+
+class AsyncCommClient_disconnect_test : public ::testing::TestWithParam<
+			std::tuple< std::string, bool >
+		>
+{ 
+	protected:
+		virtual void SetUp() {}
+		virtual void TearDown() {}
+};
+
+TEST_P(AsyncCommClient_disconnect_test, _)
+{
+	AsyncCommClient acc_;
+	asio::io_service io_service_;
+	uint16_t server_port_ = 10000;
+	bool server_connected_ = false;
+	std::string hostname	= std::get<0>(GetParam());
+	bool expect_result		= std::get<1>(GetParam());
+	bool result;
+
+	// precondition
+	tcp::acceptor server(io_service_, tcp::endpoint(tcp::v4(), server_port_));
+	tcp::socket socket(io_service_);
+	server.async_accept(
+		socket,
+		[&](boost::system::error_code ec)
+		{
+			if (ec != boost::system::errc::success)
+			{
+				std::cerr << ec.message() << std::endl;
+				return;
+			}
+			server_connected_ = true;
+		});
+
+	// target
+	result = acc_.connect(hostname, uint16_t(server_port_));
+
+	// postcondition
+	io_service_.poll();
+	EXPECT_EQ(expect_result, result);
+	EXPECT_EQ(result, server_connected_);
+}
+
+INSTANTIATE_TEST_CASE_P(
+	parameterized_instance,
+	AsyncCommClient_disconnect_test,
+	testing::Values(
+		// normal case
+		make_tuple(
+			std::string("127.0.0.1"),	// hostname
+			bool(true)					// expect_result
+		),
+		make_tuple(
+			std::string("localhost"),
+			bool(true)
+		),
+		// error case
+		make_tuple(
+			std::string("999.999.999.999"),
+			bool(false)
+		),
+		make_tuple(
+			std::string("localhhhh"),
+			bool(false)
+		)
+	)
+);
+
 //TEST_F(AsyncCommClient_test, connect)
 //{
 //	// target
