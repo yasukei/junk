@@ -1,0 +1,138 @@
+#define NULL -1
+#define MAX_OF_NODES 4
+#define NodeIndex short
+
+typedef Node
+{
+	NodeIndex next;
+};
+
+typedef Queue
+{
+	NodeIndex head;
+	NodeIndex tail;
+	NodeIndex actualHead;
+};
+
+mtype = { fire };
+Node gNodes[MAX_OF_NODES];
+Queue gQueue;
+
+proctype enqueue(chan trigger)
+{
+	NodeIndex enqueuedIndex = 0;
+
+	do
+		:: trigger?fire ->
+			/* sweep */
+			if
+				:: gQueue.head != NULL ->
+					gQueue.head = gQueue.actualHead;
+					if
+						:: gQueue.head == NULL ->
+							gQueue.tail = NULL;
+						:: else ->
+							skip;
+					fi
+				:: else -> skip;
+			fi
+			/* sweep */
+
+			gNodes[enqueuedIndex].next = NULL;
+			if
+				:: gQueue.head == NULL ->
+					gQueue.head = enqueuedIndex;
+					gQueue.tail = enqueuedIndex;
+				:: else ->
+					gNodes[gQueue.tail].next = enqueuedIndex;
+					gQueue.tail = enqueuedIndex;
+			fi
+
+			// CAS
+			atomic
+			{
+				if
+					:: gQueue.actualHead == NULL ->
+						gQueue.actualHead = enqueuedIndex;
+					:: else ->
+						skip;
+				fi
+			}
+
+			// ready for next loop
+			enqueuedIndex = enqueuedIndex + 1;
+			if
+				:: enqueuedIndex == MAX_OF_NODES -> break;
+				:: else -> skip;
+			fi
+	od
+}
+
+proctype dequeue(chan trigger)
+{
+	NodeIndex dequeuedIndex;
+
+	do
+		:: trigger?fire ->
+			if
+				:: gQueue.actualHead == NULL ->
+					skip;
+				:: else ->
+					dequeuedIndex = gQueue.actualHead;
+					atomic
+					{
+						gQueue.actualHead = gNodes[dequeuedIndex].next;
+					}
+			fi
+	od
+}
+
+proctype monitor_invariant()
+{
+	do
+		:: atomic
+			{
+				if
+					:: gQueue.actualHead != NULL ->
+						assert(gQueue.head <= gQueue.actualHead);
+						assert(gQueue.actualHead <= (gQueue.tail + 1));
+						assert(gQueue.head != NULL);
+						assert(gQueue.tail != NULL);
+					:: else -> skip;
+				fi
+			}
+	od
+}
+
+init
+{
+	chan trigger = [0] of { mtype };
+	NodeIndex index = 0;
+
+	// initialize
+	atomic
+	{
+		do
+			:: index < MAX_OF_NODES ->
+				gNodes[index].next = NULL;
+				index = index + 1;
+			:: else ->
+				break;
+		od
+		gQueue.head = NULL;
+		gQueue.tail = NULL;
+		gQueue.actualHead = NULL;
+	}
+
+	// start verification
+	atomic
+	{
+		run enqueue(trigger);
+		run dequeue(trigger);
+		run monitor_invariant();
+	}
+
+	do
+		:: trigger!fire;
+	od
+}
