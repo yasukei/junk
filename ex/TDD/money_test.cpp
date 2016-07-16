@@ -4,17 +4,15 @@
 TEST(testMultiplication, 1)
 {
 	Dollar five(5);
-	Dollar* product = five.times(2);
 
-	EXPECT_EQ(10, product->amount_);
+	EXPECT_EQ(Dollar(10), *five.times(2));
 }
 
 TEST(testMultiplication, 2)
 {
 	Dollar five(5);
-	Dollar* product = five.times(3);
 
-	EXPECT_EQ(15, product->amount_);
+	EXPECT_EQ(Dollar(15), *five.times(3));
 }
 
 TEST(testEquality, 1)
