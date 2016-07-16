@@ -5,11 +5,17 @@
 
 using std::string;
 
+class Expression;
 class Money;
-class Dollar;
-class Frank;
+class Bank;
 
-class Money
+class Expression
+{
+	public:
+		virtual ~Expression() = 0;
+};
+
+class Money : public Expression
 {
 	public:
 		// factory method
@@ -17,18 +23,25 @@ class Money
 		static Money* franc(int amount);
 
 		Money(int amount, string currency);
-		virtual ~Money() = default;
+		~Money();
 
 		bool equals(const Money& another) const;
 		bool operator==(const Money& rhs) const;
 		bool operator!=(const Money& rhs) const;
+		Expression* plus(const Money& another) const;
 		string currency() const;
-		virtual Money* times(int multiplier) const;
+		Money* times(int multiplier) const;
 
 	protected:
 		int amount_;
 		string currency_;
 
+};
+
+class Bank
+{
+	public:
+		Money* reduce(Expression* source, string to);
 };
 
 #endif // _MONEY_HPP_

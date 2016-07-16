@@ -8,6 +8,15 @@ TEST(testMultiplication, 1)
 	EXPECT_EQ(*Money::dollar(15), *(five->times(3)));
 }
 
+TEST(testSimpleAddition, 1)
+{
+	Money* five = Money::dollar(5);
+	Expression* sum = five->plus(*five);
+	Bank* bank = new Bank();
+	Money* reduced = bank->reduce(sum, "USD");
+	EXPECT_EQ(*Money::dollar(10), *reduced);
+}
+
 TEST(testEquality, 1)
 {
 	EXPECT_EQ(*Money::dollar(5), *Money::dollar(5));
