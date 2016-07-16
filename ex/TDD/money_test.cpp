@@ -19,5 +19,7 @@ TEST(testEquality, 1)
 
 	EXPECT_EQ(Franc(5), Franc(5));
 	EXPECT_NE(Franc(5), Franc(6));
+
+	EXPECT_NE(Dollar(5), Franc(5));
 }
 

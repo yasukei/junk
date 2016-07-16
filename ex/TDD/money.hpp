@@ -1,6 +1,10 @@
 #ifndef _MONEY_HPP_
 #define _MONEY_HPP_
 
+#include <typeinfo>
+#include <cstdio>
+#include <iostream>
+
 class Money
 {
 	public:
@@ -8,23 +12,24 @@ class Money
 			: amount_(amount)
 		{
 		}
+		virtual ~Money() = default;
 
-		bool equals(const Money& another) const
+		virtual bool equals(const Money& another) const
 		{
-			return amount_ == another.amount_;
+			return (amount_ == another.amount_) && (typeid(*this) == typeid(another));
 		}
 
-		bool operator==(const Money& rhs) const
+		virtual bool operator==(const Money& rhs) const
 		{
 			return equals(rhs);
 		}
 
-		bool operator!=(const Money& rhs) const
+		virtual bool operator!=(const Money& rhs) const
 		{
 			return ! (*this == rhs);
 		}
 
-		Money* times(int multiplier) const
+		virtual Money* times(int multiplier) const
 		{
 			return new Money(amount_ * multiplier); // FIXME: use smart pointer
 		}
@@ -40,6 +45,12 @@ class Dollar : public Money
 			: Money(amount)
 		{
 		}
+
+		virtual Dollar* times(int multiplier) const
+		{
+			return new Dollar(amount_ * multiplier); // FIXME: use smart pointer
+		}
+
 };
 
 class Franc : public Money
@@ -49,6 +60,12 @@ class Franc : public Money
 			: Money(amount)
 		{
 		}
+
+		virtual Franc* times(int multiplier) const
+		{
+			return new Franc(amount_ * multiplier); // FIXME: use smart pointer
+		}
+
 };
 
 #endif // _MONEY_HPP_
