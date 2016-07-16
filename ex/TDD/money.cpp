@@ -9,12 +9,12 @@
 // ------------------------------------------------------------------
 Money* Money::dollar(int amount)
 {
-	return new Dollar(amount, "USD");
+	return new Dollar(amount, "USD"); // FIXME: use smart pointer
 }
 
 Money* Money::franc(int amount)
 {
-	return new Franc(amount, "CHF");
+	return new Franc(amount, "CHF"); // FIXME: use smart pointer
 }
 
 Money::Money(int amount, string currency) :
