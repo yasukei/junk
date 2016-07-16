@@ -4,8 +4,6 @@
 class Dollar
 {
 	public:
-		int amount_;
-
 		Dollar(int amount) :
 			amount_(amount)
 		{
@@ -30,6 +28,9 @@ class Dollar
 		{
 			return ! (*this == rhs);
 		}
+
+	private:
+		int amount_;
 };
 
 #endif // _MONEY_HPP_
