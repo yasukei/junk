@@ -4,17 +4,20 @@
 class Dollar
 {
 	public:
-		int amount;
+		int amount_;
 
 		Dollar(int amount) :
-			amount(10)
+			amount_(amount)
 		{
-			(void)amount;
 		}
 
-		void times(int multiplier)
+		Dollar* times(int multiplier)
 		{
-			(void)multiplier;
+			return new Dollar(amount_ * multiplier);
+		}
+		bool equals(Dollar& another)
+		{
+			return amount_ == another.amount_;
 		}
 };
 
