@@ -24,7 +24,7 @@ class Money
 		bool operator==(const Money& rhs) const;
 		bool operator!=(const Money& rhs) const;
 		string currency() const;
-		virtual Money* times(int multiplier) const = 0;
+		virtual Money* times(int multiplier) const;
 
 	protected:
 		int amount_;

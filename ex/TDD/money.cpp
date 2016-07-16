@@ -25,7 +25,7 @@ Money::Money(int amount, string currency) :
 
 bool Money::equals(const Money& another) const
 {
-	return (amount_ == another.amount_) && (typeid(*this) == typeid(another));
+	return (amount_ == another.amount_) && (currency_ == another.currency_);
 }
 
 bool Money::operator==(const Money& rhs) const
@@ -43,6 +43,11 @@ string Money::currency() const
 	return currency_;
 }
 
+Money* Money::times(int multiplier) const
+{
+	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
+}
+
 // ------------------------------------------------------------------
 // Dollar
 // ------------------------------------------------------------------
@@ -53,7 +58,7 @@ Dollar::Dollar(int amount, string currency) :
 
 Money* Dollar::times(int multiplier) const
 {
-	return Money::dollar(amount_ * multiplier);
+	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
 }
 
 // ------------------------------------------------------------------
@@ -66,6 +71,6 @@ Franc::Franc(int amount, string currency) :
 
 Money* Franc::times(int multiplier) const
 {
-	return Money::franc(amount_ * multiplier);
+	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
 }
 
