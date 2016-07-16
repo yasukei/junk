@@ -4,6 +4,8 @@
 
 #include "money.hpp"
 
+using std::make_shared;
+
 // ------------------------------------------------------------------
 // Expression
 // ------------------------------------------------------------------
@@ -14,14 +16,14 @@ Expression::~Expression()
 // ------------------------------------------------------------------
 // Money
 // ------------------------------------------------------------------
-Money* Money::dollar(int amount)
+shared_ptr<Money> Money::dollar(int amount)
 {
-	return new Money(amount, "USD"); // FIXME: use smart pointer
+	return make_shared<Money>(amount, "USD");
 }
 
-Money* Money::franc(int amount)
+shared_ptr<Money> Money::franc(int amount)
 {
-	return new Money(amount, "CHF"); // FIXME: use smart pointer
+	return make_shared<Money>(amount, "CHF");
 }
 
 Money::Money(int amount, string currency) :
@@ -49,9 +51,9 @@ bool Money::operator!=(const Money& rhs) const
 	return ! (*this == rhs);
 }
 
-Expression* Money::plus(const Money& rhs) const
+shared_ptr<Expression> Money::plus(const Money& rhs) const
 {
-	return new Money(amount_ + rhs.amount_, currency_);
+	return make_shared<Money>(amount_ + rhs.amount_, currency_);
 }
 
 string Money::currency() const
@@ -59,15 +61,15 @@ string Money::currency() const
 	return currency_;
 }
 
-Money* Money::times(int multiplier) const
+shared_ptr<Money> Money::times(int multiplier) const
 {
-	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
+	return make_shared<Money>(amount_ * multiplier, currency_);
 }
 
 // ------------------------------------------------------------------
 // Bank
 // ------------------------------------------------------------------
-Money* Bank::reduce(Expression* source, string to)
+shared_ptr<Money> Bank::reduce(Expression& source, string to)
 {
 	(void)source;
 	(void)to;

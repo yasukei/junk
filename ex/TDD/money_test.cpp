@@ -3,17 +3,17 @@
 
 TEST(testMultiplication, 1)
 {
-	Money* five = Money::dollar(5);
+	shared_ptr<Money> five = Money::dollar(5);
 	EXPECT_EQ(*Money::dollar(10), *(five->times(2)));
 	EXPECT_EQ(*Money::dollar(15), *(five->times(3)));
 }
 
 TEST(testSimpleAddition, 1)
 {
-	Money* five = Money::dollar(5);
-	Expression* sum = five->plus(*five);
-	Bank* bank = new Bank();
-	Money* reduced = bank->reduce(sum, "USD");
+	shared_ptr<Money> five = Money::dollar(5);
+	shared_ptr<Expression> sum = five->plus(*five);
+	shared_ptr<Bank> bank = std::make_shared<Bank>();
+	shared_ptr<Money> reduced = bank->reduce(*sum, "USD");
 	EXPECT_EQ(*Money::dollar(10), *reduced);
 }
 

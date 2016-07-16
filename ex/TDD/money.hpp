@@ -2,8 +2,10 @@
 #define _MONEY_HPP_
 
 #include <string>
+#include <memory>
 
 using std::string;
+using std::shared_ptr;
 
 class Expression;
 class Money;
@@ -19,8 +21,8 @@ class Money : public Expression
 {
 	public:
 		// factory method
-		static Money* dollar(int amount);
-		static Money* franc(int amount);
+		static shared_ptr<Money> dollar(int amount);
+		static shared_ptr<Money> franc(int amount);
 
 		Money(int amount, string currency);
 		~Money();
@@ -28,9 +30,9 @@ class Money : public Expression
 		bool equals(const Money& another) const;
 		bool operator==(const Money& rhs) const;
 		bool operator!=(const Money& rhs) const;
-		Expression* plus(const Money& another) const;
+		shared_ptr<Expression> plus(const Money& another) const;
 		string currency() const;
-		Money* times(int multiplier) const;
+		shared_ptr<Money> times(int multiplier) const;
 
 	protected:
 		int amount_;
@@ -41,7 +43,7 @@ class Money : public Expression
 class Bank
 {
 	public:
-		Money* reduce(Expression* source, string to);
+		shared_ptr<Money> reduce(Expression& source, string to);
 };
 
 #endif // _MONEY_HPP_
