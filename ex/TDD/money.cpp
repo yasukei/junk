@@ -9,12 +9,12 @@
 // ------------------------------------------------------------------
 Money* Money::dollar(int amount)
 {
-	return new Dollar(amount, "USD"); // FIXME: use smart pointer
+	return new Money(amount, "USD"); // FIXME: use smart pointer
 }
 
 Money* Money::franc(int amount)
 {
-	return new Franc(amount, "CHF"); // FIXME: use smart pointer
+	return new Money(amount, "CHF"); // FIXME: use smart pointer
 }
 
 Money::Money(int amount, string currency) :
@@ -44,32 +44,6 @@ string Money::currency() const
 }
 
 Money* Money::times(int multiplier) const
-{
-	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
-}
-
-// ------------------------------------------------------------------
-// Dollar
-// ------------------------------------------------------------------
-Dollar::Dollar(int amount, string currency) :
-	Money(amount, currency)
-{
-}
-
-Money* Dollar::times(int multiplier) const
-{
-	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
-}
-
-// ------------------------------------------------------------------
-// Franc
-// ------------------------------------------------------------------
-Franc::Franc(int amount, string currency) :
-	Money(amount, currency)
-{
-}
-
-Money* Franc::times(int multiplier) const
 {
 	return new Money(amount_ * multiplier, currency_); // FIXME: use smart pointer
 }

@@ -16,7 +16,6 @@ class Money
 		static Money* dollar(int amount);
 		static Money* franc(int amount);
 
-		// methods for subclasses
 		Money(int amount, string currency);
 		virtual ~Money() = default;
 
@@ -29,24 +28,6 @@ class Money
 	protected:
 		int amount_;
 		string currency_;
-
-};
-
-class Dollar : public Money
-{
-	public:
-		Dollar(int amount, string currency);
-
-		virtual Money* times(int multiplier) const;
-
-};
-
-class Franc : public Money
-{
-	public:
-		Franc(int amount, string currency);
-
-		virtual Money* times(int multiplier) const;
 
 };
 
