@@ -1,68 +1,54 @@
 #ifndef _MONEY_HPP_
 #define _MONEY_HPP_
 
-class Dollar
+class Money
 {
 	public:
-		Dollar(int amount) :
-			amount_(amount)
+		Money(int amount)
+			: amount_(amount)
 		{
 		}
 
-		Dollar* times(int multiplier) const
-		{
-			return new Dollar(amount_ * multiplier);
-		}
-
-		bool equals(const Dollar& another) const
+		bool equals(const Money& another) const
 		{
 			return amount_ == another.amount_;
 		}
 
-		bool operator==(const Dollar& rhs) const
+		bool operator==(const Money& rhs) const
 		{
 			return equals(rhs);
 		}
 
-		bool operator!=(const Dollar& rhs) const
+		bool operator!=(const Money& rhs) const
 		{
 			return ! (*this == rhs);
 		}
 
-	private:
+		Money* times(int multiplier) const
+		{
+			return new Money(amount_ * multiplier); // FIXME: use smart pointer
+		}
+
+	protected:
 		int amount_;
 };
 
-class Franc
+class Dollar : public Money
 {
 	public:
-		Franc(int amount) :
-			amount_(amount)
+		Dollar(int amount)
+			: Money(amount)
 		{
 		}
+};
 
-		Franc* times(int multiplier) const
+class Franc : public Money
+{
+	public:
+		Franc(int amount)
+			: Money(amount)
 		{
-			return new Franc(amount_ * multiplier);
 		}
-
-		bool equals(const Franc& another) const
-		{
-			return amount_ == another.amount_;
-		}
-
-		bool operator==(const Franc& rhs) const
-		{
-			return equals(rhs);
-		}
-
-		bool operator!=(const Franc& rhs) const
-		{
-			return ! (*this == rhs);
-		}
-
-	private:
-		int amount_;
 };
 
 #endif // _MONEY_HPP_
