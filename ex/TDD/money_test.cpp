@@ -17,15 +17,11 @@ TEST(testMultiplication, 2)
 
 TEST(testEquality, 1)
 {
-	Dollar five1(5);
-	Dollar five2(5);
-	EXPECT_EQ(five1, five2);
+	EXPECT_EQ(Dollar(5), Dollar(5));
 }
 
 TEST(testEquality, 2)
 {
-	Dollar five1(5);
-	Dollar five2(6);
-	EXPECT_NE(five1, five2);
+	EXPECT_NE(Dollar(5), Dollar(6));
 }
 
