@@ -33,4 +33,36 @@ class Dollar
 		int amount_;
 };
 
+class Franc
+{
+	public:
+		Franc(int amount) :
+			amount_(amount)
+		{
+		}
+
+		Franc* times(int multiplier) const
+		{
+			return new Franc(amount_ * multiplier);
+		}
+
+		bool equals(const Franc& another) const
+		{
+			return amount_ == another.amount_;
+		}
+
+		bool operator==(const Franc& rhs) const
+		{
+			return equals(rhs);
+		}
+
+		bool operator!=(const Franc& rhs) const
+		{
+			return ! (*this == rhs);
+		}
+
+	private:
+		int amount_;
+};
+
 #endif // _MONEY_HPP_
