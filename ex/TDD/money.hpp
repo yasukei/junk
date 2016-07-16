@@ -1,38 +1,25 @@
 #ifndef _MONEY_HPP_
 #define _MONEY_HPP_
 
-#include <typeinfo>
-#include <cstdio>
-#include <iostream>
+class Money;
+class Dollar;
+class Frank;
 
 class Money
 {
 	public:
-		Money(int amount)
-			: amount_(amount)
-		{
-		}
+		// factory method
+		static Money* dollar(int amount);
+		static Money* franc(int amount);
+
+		// methods for inheritance
+		Money(int amount);
 		virtual ~Money() = default;
 
-		virtual bool equals(const Money& another) const
-		{
-			return (amount_ == another.amount_) && (typeid(*this) == typeid(another));
-		}
-
-		virtual bool operator==(const Money& rhs) const
-		{
-			return equals(rhs);
-		}
-
-		virtual bool operator!=(const Money& rhs) const
-		{
-			return ! (*this == rhs);
-		}
-
-		virtual Money* times(int multiplier) const
-		{
-			return new Money(amount_ * multiplier); // FIXME: use smart pointer
-		}
+		virtual bool equals(const Money& another) const;
+		virtual bool operator==(const Money& rhs) const;
+		virtual bool operator!=(const Money& rhs) const;
+		virtual Money* times(int multiplier) const = 0;
 
 	protected:
 		int amount_;
@@ -41,30 +28,18 @@ class Money
 class Dollar : public Money
 {
 	public:
-		Dollar(int amount)
-			: Money(amount)
-		{
-		}
+		Dollar(int amount);
 
-		virtual Dollar* times(int multiplier) const
-		{
-			return new Dollar(amount_ * multiplier); // FIXME: use smart pointer
-		}
+		virtual Money* times(int multiplier) const;
 
 };
 
 class Franc : public Money
 {
 	public:
-		Franc(int amount)
-			: Money(amount)
-		{
-		}
+		Franc(int amount);
 
-		virtual Franc* times(int multiplier) const
-		{
-			return new Franc(amount_ * multiplier); // FIXME: use smart pointer
-		}
+		virtual Money* times(int multiplier) const;
 
 };
 
