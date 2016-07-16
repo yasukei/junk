@@ -23,3 +23,8 @@ TEST(testEquality, 1)
 	EXPECT_NE(*Money::dollar(5), *Money::franc(5));
 }
 
+TEST(testCurrency, 1)
+{
+	EXPECT_EQ("USD", Money::dollar(1)->currency());
+	EXPECT_EQ("CHF", Money::franc(1)->currency());
+}
