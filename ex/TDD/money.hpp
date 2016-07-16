@@ -11,13 +11,24 @@ class Dollar
 		{
 		}
 
-		Dollar* times(int multiplier)
+		Dollar* times(int multiplier) const
 		{
 			return new Dollar(amount_ * multiplier);
 		}
-		bool equals(Dollar& another)
+
+		bool equals(const Dollar& another) const
 		{
 			return amount_ == another.amount_;
+		}
+
+		bool operator==(const Dollar& rhs) const
+		{
+			return equals(rhs);
+		}
+
+		bool operator!=(const Dollar& rhs) const
+		{
+			return ! (*this == rhs);
 		}
 };
 

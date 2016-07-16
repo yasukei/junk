@@ -21,13 +21,13 @@ TEST(testEquality, 1)
 {
 	Dollar five1(5);
 	Dollar five2(5);
-	EXPECT_TRUE(five1.equals(five2));
+	EXPECT_EQ(five1, five2);
 }
 
 TEST(testEquality, 2)
 {
 	Dollar five1(5);
 	Dollar five2(6);
-	EXPECT_FALSE(five1.equals(five2));
+	EXPECT_NE(five1, five2);
 }
 
