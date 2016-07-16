@@ -3,13 +3,9 @@
 
 TEST(testMultiplication, 1)
 {
-	Money* five1 = Money::dollar(5);
-	EXPECT_EQ(*Money::dollar(10), *(five1->times(2)));
-	EXPECT_EQ(*Money::dollar(15), *(five1->times(3)));
-
-	Money* five2 = Money::franc(5);
-	EXPECT_EQ(*Money::franc(10), *(five2->times(2)));
-	EXPECT_EQ(*Money::franc(15), *(five2->times(3)));
+	Money* five = Money::dollar(5);
+	EXPECT_EQ(*Money::dollar(10), *(five->times(2)));
+	EXPECT_EQ(*Money::dollar(15), *(five->times(3)));
 }
 
 TEST(testEquality, 1)
