@@ -9,3 +9,4 @@ GRTAGS
 GTAGS
 *.pyc
 *.out
+*.vagrant
