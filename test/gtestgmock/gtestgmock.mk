@@ -1,8 +1,9 @@
 #
 # variables
 #
-GMOCK_DIR = $(HOME)/bin/gmock
-GTEST_DIR = $(GMOCK_DIR)/gtest
+GOOGLETEST_DIR = ../../opt/googletest
+GTEST_DIR = $(GOOGLETEST_DIR)/googletest
+GMOCK_DIR = $(GOOGLETEST_DIR)/googlemock
 
 GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
                 $(GTEST_DIR)/include/gtest/internal/*.h
