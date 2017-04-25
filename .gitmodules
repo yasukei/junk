@@ -1,3 +1,6 @@
 [submodule "ex/TDD/googletest"]
 	path = ex/TDD/googletest
 	url = https://github.com/google/googletest
+[submodule "opt/googletest"]
+	path = opt/googletest
+	url = https://github.com/google/googletest
