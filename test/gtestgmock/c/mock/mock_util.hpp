@@ -1,7 +1,6 @@
-#ifndef _CLASSA_MOCK_H_
-#define _CLASSA_MOCK_H_
+#ifndef _MOCK_UTIL_H_
+#define _MOCK_UTIL_H_
 // ----------------------------------------------
-#include <pthread.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 using ::testing::_;
@@ -38,5 +37,5 @@ class MockUtil
 
 
 // ----------------------------------------------
-#endif // _CLASSA_MOCK_H_
+#endif // _MOCK_UTIL_H_
 
