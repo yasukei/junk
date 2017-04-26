@@ -1,5 +1,9 @@
 TEST_TARGET = googleTestExampleC
 
+GOOGLETEST_DIR = ../../../opt/googletest
+export GTEST_DIR = $(GOOGLETEST_DIR)/googletest
+export GMOCK_DIR = $(GOOGLETEST_DIR)/googlemock
+
 TEST_DIR = test
 TEST_FILES = $(shell find $(TEST_DIR) -name '*.cpp')
 TEST_OBJS = $(TEST_FILES:.cpp=.o)
@@ -26,11 +30,11 @@ INCLUDE_DIRS = \
 DEBUG_OPTION = -g
 COVERAGE_OPTION = -fprofile-arcs -ftest-coverage
 WARNING_OPTION = -Wall -Wextra
-COMPILE_OPTION = -std=c++11 -pthread
+CXX_OPTION = -std=c++11 -pthread
 
 all : $(TEST_TARGET)
 
-test : $(TEST_TARGET)
+test : all
 	./$(TEST_TARGET)
 
 lcov : test
@@ -38,24 +42,27 @@ lcov : test
 	lcov -c -d . -o $(LCOV_DIR)/$(LCOV_INFO)
 	genhtml -o $(LCOV_DIR) $(LCOV_DIR)/$(LCOV_INFO)
 
-clean :
-	rm -f *.o *.a
+clean : gmock_main.a.clean
 	rm -f $(TEST_TARGET) $(TEST_OBJS) $(MOCK_OBJS) $(SRC_OBJS)
 	rm -rf $(LCOV_DIR) $(shell find . -name '*.gcda' -o -name '*.gcno')
 
-$(TEST_OBJS): CPPFLAGS += $(INCLUDE_DIRS)
-$(TEST_OBJS): CXXFLAGS += $(DEBUG_OPTION) $(WARNING_OPTION) $(COMPILE_OPTION)
+$(TEST_OBJS): CPPFLAGS = $(INCLUDE_DIRS)
+$(TEST_OBJS): CXXFLAGS = $(DEBUG_OPTION) $(WARNING_OPTION) $(CXX_OPTION)
 
-$(MOCK_OBJS): CPPFLAGS += $(INCLUDE_DIRS)
-$(MOCK_OBJS): CXXFLAGS += $(DEBUG_OPTION) $(WARNING_OPTION) $(COMPILE_OPTION)
+$(MOCK_OBJS): CPPFLAGS = $(INCLUDE_DIRS)
+$(MOCK_OBJS): CXXFLAGS = $(DEBUG_OPTION) $(WARNING_OPTION) $(CXX_OPTION)
 
-$(SRC_OBJS): CPPFLAGS +=
-$(SRC_OBJS): CFLAGS += $(DEBUG_OPTION) $(COVERAGE_OPTION) $(WARNING_OPTION)
+$(SRC_OBJS): CPPFLAGS =
+$(SRC_OBJS): CFLAGS = $(DEBUG_OPTION) $(COVERAGE_OPTION) $(WARNING_OPTION)
 
-$(TEST_TARGET): CPPFLAGS +=
-$(TEST_TARGET): CXXFLAGS += $(DEBUG_OPTION) $(COVERAGE_OPTION) $(WARNING_OPTION) $(COMPILE_OPTION)
+$(TEST_TARGET): CPPFLAGS =
+$(TEST_TARGET): CXXFLAGS = $(DEBUG_OPTION) $(COVERAGE_OPTION) $(WARNING_OPTION) $(CXX_OPTION)
 $(TEST_TARGET) : $(TEST_OBJS) $(MOCK_OBJS) $(SRC_OBJS) gmock_main.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@
 
-include gtestgmock.mk
+gmock_main.a : 
+	$(MAKE) -C . -f googletest.mk $@
+
+gmock_main.a.clean : 
+	$(MAKE) -C . -f googletest.mk clean
 
