@@ -5,6 +5,8 @@ GOOGLETEST_DIR = ../../../opt/googletest
 GTEST_DIR = $(GOOGLETEST_DIR)/googletest
 GMOCK_DIR = $(GOOGLETEST_DIR)/googlemock
 
+GTESTGMOCK_INCLUDE_DIR = -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include
+
 GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
                 $(GTEST_DIR)/include/gtest/internal/*.h
 
@@ -20,15 +22,15 @@ GMOCK_SRCS_ = $(GMOCK_DIR)/src/*.cc $(GMOCK_HEADERS)
 #
 
 gtest-all.o : $(GTEST_SRCS_)
-	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GMOCK_DIR) $(CXXFLAGS) \
+	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GMOCK_DIR) -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include $(CXXFLAGS) \
             -c $(GTEST_DIR)/src/gtest-all.cc
 
 gmock-all.o : $(GMOCK_SRCS_)
-	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GMOCK_DIR) $(CXXFLAGS) \
+	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GMOCK_DIR) -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include $(CXXFLAGS) \
             -c $(GMOCK_DIR)/src/gmock-all.cc
 
 gmock_main.o : $(GMOCK_SRCS_)
-	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GMOCK_DIR) $(CXXFLAGS) \
+	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) -I$(GMOCK_DIR) -I$(GTEST_DIR)/include -I$(GMOCK_DIR)/include $(CXXFLAGS) \
             -c $(GMOCK_DIR)/src/gmock_main.cc
 
 gmock.a : gmock-all.o gtest-all.o

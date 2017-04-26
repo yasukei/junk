@@ -1,2 +1,2 @@
-[ ] mock malloc/free of ClassA
+[x] mock malloc/free of ClassA
 [ ] test InnerClassB

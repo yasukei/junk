@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "util.h"
 
 #include "classA.h"
 
@@ -17,7 +18,7 @@ static InnerClassB* InnerClassB_create(void)
 {
 	InnerClassB* self;
 
-	self = malloc(sizeof(InnerClassB));
+	self = UtilMalloc(sizeof(InnerClassB));
 	if(self == NULL)
 	{
 		return NULL;
@@ -28,7 +29,7 @@ static InnerClassB* InnerClassB_create(void)
 // ----------------------------------------------
 static void InnerClassB_destroy(InnerClassB* self)
 {
-	free(self);
+	UtilFree(self);
 }
 
 // ----------------------------------------------
@@ -44,7 +45,7 @@ ClassA* ClassA_create(void)
 {
 	ClassA* self;
 
-	self = malloc(sizeof(ClassA));
+	self = UtilMalloc(sizeof(ClassA));
 	if(self == NULL)
 	{
 		return NULL;
@@ -55,6 +56,6 @@ ClassA* ClassA_create(void)
 // ----------------------------------------------
 void ClassA_destroy(ClassA* self)
 {
-	free(self);
+	UtilFree(self);
 }
 
