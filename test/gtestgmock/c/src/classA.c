@@ -9,7 +9,7 @@
 // ----------------------------------------------
 struct ClassA
 {
-	int dummy;
+	int progress;
 };
 
 // ----------------------------------------------
@@ -22,7 +22,25 @@ ClassA* ClassA_create(void)
 	{
 		return NULL;
 	}
+	self->progress = 0;
 	return self;
+}
+
+// ----------------------------------------------
+void ClassA_doWork(ClassA* self, int money)
+{
+	if(money < 0)
+	{
+		return;
+	}
+
+	self->progress += money / 2;
+}
+
+// ----------------------------------------------
+int ClassA_getProgress(ClassA* self)
+{
+	return self->progress;
 }
 
 // ----------------------------------------------

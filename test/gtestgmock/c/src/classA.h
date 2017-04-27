@@ -9,6 +9,8 @@ extern "C" {
 typedef struct ClassA ClassA;
 
 ClassA* ClassA_create(void);
+void ClassA_doWork(ClassA* self, int money);
+int ClassA_getProgress(ClassA* self);
 void ClassA_destroy(ClassA* self);
 
 // ----------------------------------------------
