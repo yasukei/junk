@@ -10,3 +10,4 @@ GTAGS
 *.pyc
 *.out
 *.vagrant
+.vscode
