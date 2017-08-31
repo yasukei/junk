@@ -33,7 +33,7 @@ func TestAddCommand(t *testing.T) {
 	cmdr := New()
 	cmdr.AddCommand(&CommandForTest{})
 
-	result := cmdr.ExecCommand(commandName)
+	result := cmdr.Execute(commandName)
 	if result != commandResult {
 		t.Error("got: " + result)
 		t.Error("expected: " + commandResult)

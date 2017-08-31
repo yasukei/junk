@@ -28,6 +28,6 @@ func main() {
 
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
-		fmt.Println(cmdr.ExecCommand(s.Text()))
+		fmt.Println(cmdr.Execute(s.Text()))
 	}
 }
