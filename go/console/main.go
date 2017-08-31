@@ -21,11 +21,11 @@ func (ec *EchoCommand) Exec(arg string) string {
 }
 
 func main() {
-	cmdmgr := NewCommandManager()
-	cmdmgr.AddCommand(&EchoCommand{})
+	cmdr := NewCommander()
+	cmdr.AddCommand(&EchoCommand{})
 
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
-		fmt.Println(cmdmgr.ExecCommand(s.Text()))
+		fmt.Println(cmdr.ExecCommand(s.Text()))
 	}
 }

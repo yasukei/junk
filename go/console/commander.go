@@ -10,18 +10,18 @@ type Command interface {
 	Exec(arg string) string
 }
 
-// CommandManager is a manager class of Command
-type CommandManager struct {
+// Commander is a manager class of Command
+type Commander struct {
 	commands []Command
 }
 
-// AddCommand adds Command into the CommandManager
-func (cm *CommandManager) AddCommand(c Command) {
+// AddCommand adds Command into the Commander
+func (cm *Commander) AddCommand(c Command) {
 	cm.commands = append(cm.commands, c)
 }
 
-// ExecCommand executes Command managed by the CommandManager
-func (cm *CommandManager) ExecCommand(input string) string {
+// ExecCommand executes Command managed by the Commander
+func (cm *Commander) ExecCommand(input string) string {
 	var name, arg string
 	input = strings.TrimSpace(input)
 	i := strings.Index(input, " ")
@@ -41,7 +41,7 @@ func (cm *CommandManager) ExecCommand(input string) string {
 	return "Command not found: " + name
 }
 
-// NewCommandManager create the instance of NewCommandManager
-func NewCommandManager() *CommandManager {
-	return &CommandManager{commands: make([]Command, 0)}
+// NewCommander create the instance of NewCommander
+func NewCommander() *Commander {
+	return &Commander{commands: make([]Command, 0)}
 }
