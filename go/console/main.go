@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+
+	"./commander"
 )
 
 // EchoCommand is a class which implementes Command interface and does echo
@@ -21,7 +23,7 @@ func (ec *EchoCommand) Exec(arg string) string {
 }
 
 func main() {
-	cmdr := NewCommander()
+	cmdr := commander.New()
 	cmdr.AddCommand(&EchoCommand{})
 
 	s := bufio.NewScanner(os.Stdin)

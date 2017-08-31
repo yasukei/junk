@@ -1,4 +1,4 @@
-package main
+package commander
 
 import (
 	"strings"
@@ -41,7 +41,7 @@ func (cm *Commander) ExecCommand(input string) string {
 	return "Command not found: " + name
 }
 
-// NewCommander create the instance of NewCommander
-func NewCommander() *Commander {
+// New create the instance of Commander
+func New() *Commander {
 	return &Commander{commands: make([]Command, 0)}
 }
