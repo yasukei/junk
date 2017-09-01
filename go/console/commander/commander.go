@@ -4,14 +4,14 @@ import (
 	"strings"
 )
 
-// Command interface is exported for implementer of Command
+// Command is interface
 type Command interface {
-	Name() string
-	Exec(arg string) string
-	Help(arg string, verbose bool) string
+	Name() string                         // returns the name of Command
+	Exec(arg string) string               // executes the Command and returns the result
+	Help(arg string, verbose bool) string // returns the help message of the Command
 }
 
-// Commander is a manager class of Command
+// Commander is a manager of Command
 type Commander struct {
 	commands []Command
 }
