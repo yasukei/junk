@@ -38,7 +38,7 @@ type pathSearcher struct {
 	maxHop int
 }
 
-func (ps *pathSearcher) initialize() (err error) {
+func (ps *pathSearcher) Initialize() (err error) {
 	ps.src = "0.0.0.0"
 	ps.lp, err = net.ListenPacket("ip4:icmp", ps.src)
 	if err != nil {
@@ -54,7 +54,7 @@ func (ps *pathSearcher) initialize() (err error) {
 	return nil
 }
 
-func (ps *pathSearcher) finalize() {
+func (ps *pathSearcher) Finalize() {
 	ps.p.Close()
 	ps.lp.Close()
 }
@@ -106,8 +106,6 @@ func (ps *pathSearcher) sendICMPEcho(dst string, ttl int) (*path, error) {
 	n, cm, peer, err := ps.p.ReadFrom(rb)
 	if err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
-			// TODO: do appropriate behavior
-			log.Print("timeout!!!")
 			return &path{"*", "*", ttl, 0}, nil
 		}
 		return nil, err
@@ -124,7 +122,7 @@ func (ps *pathSearcher) sendICMPEcho(dst string, ttl int) (*path, error) {
 	return &path{ps.lp.LocalAddr().String(), peer.String(), cm.TTL, rtt}, nil
 }
 
-func (ps *pathSearcher) search(dst string) ([]*path, error) {
+func (ps *pathSearcher) Search(dst string) ([]*path, error) {
 	paths := make([]*path, 0)
 	for i := 1; i <= ps.maxHop; i++ {
 		log.Print(i)
@@ -140,24 +138,52 @@ func (ps *pathSearcher) search(dst string) ([]*path, error) {
 	return paths, nil
 }
 
+type ipConnectionDB struct {
+	srcToDst map[string][]net.IP
+	dstToSrc map[string][]net.IP
+}
+
+func (icdb *ipConnectionDB) AddConnection(src net.IP, dst net.IP) {
+	icdb.srcToDst[src.String()] = append(icdb.srcToDst[src.String()], dst)
+	icdb.dstToSrc[dst.String()] = append(icdb.dstToSrc[dst.String()], src)
+}
+
+func (icdb *ipConnectionDB) getDstIPsBySrcIP(src net.IP) []net.IP {
+	return icdb.srcToDst[src.String()]
+}
+
+func (icdb *ipConnectionDB) getSrcIPsByDstIP(dst net.IP) []net.IP {
+	return icdb.dstToSrc[dst.String()]
+}
+
+func isPrivateIP(ip net.IP) bool {
+	// ref: https://en.wikipedia.org/wiki/Private_network
+	// ref: https://stackoverflow.com/questions/41240761/go-check-if-ip-address-is-in-private-network-space
+	_, private24BitBlock, _ := net.ParseCIDR("10.0.0.0/8")
+	_, private20BitBlock, _ := net.ParseCIDR("172.16.0.0/12")
+	_, private16BitBlock, _ := net.ParseCIDR("192.168.0.0/16")
+	return private24BitBlock.Contains(ip) || private20BitBlock.Contains(ip) || private16BitBlock.Contains(ip)
+}
+
 func main() {
 	if err := inspectExecEnvironment(); err != nil {
 		log.Fatal(err)
 	}
 
 	var ps pathSearcher
-	if err := ps.initialize(); err != nil {
+	if err := ps.Initialize(); err != nil {
 		log.Fatal(err)
 	}
-	defer ps.finalize()
+	defer ps.Finalize()
 
 	var paths []*path
 	var err error
-	if paths, err = ps.search("182.22.31.124"); err != nil {
+	if paths, err = ps.Search("182.22.31.124"); err != nil {
 		log.Fatal(err)
 	}
 	for i := range paths {
 		p := paths[i]
-		log.Printf("Src: %s, Dst: %s, TTL: %d, Time[ms]: %d", p.SrcIP, p.DstIP, p.TTL, p.TurnArround.Nanoseconds()/1000/1000)
+		log.Printf("Src: %s, Dst: %s, TTL: %d, Time[ms]: %d, %t, %t", p.SrcIP, p.DstIP, p.TTL, p.TurnArround.Nanoseconds()/1000/1000, net.ParseIP(p.DstIP).IsGlobalUnicast(), isPrivateIP(net.ParseIP(p.DstIP)))
 	}
+
 }
