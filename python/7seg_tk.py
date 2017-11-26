@@ -177,10 +177,49 @@ class SsdMode:
     def onTick(self):
         pass
 
+class DisplayPattern:
+    def __init__(self, displayFrames):
+        self.pictures = collections.deque()
+        for p in pictures:
+            self.pictures.append(p)
+
+    def getNextPicture(self):
+        p = self.pictures.popleft()
+        self.pictures.append(p)
+        return p
+
+class DisplayFrame:
+    def __init__(self, picture, timeMillisec):
+        self.picture = picture
+        self.timeMillisec = timeMillisec
+
+    def getPicture(self):
+        return self.picture
+
+    def getTimeMillisec(self):
+        return self.timeMillisec
+
 class NormalSsdMode(SsdMode):
+    def __init__(self, ssdDriver, stateManager, configManager):
+        self.ssdDriver = ssdDriver
+        self.stateManager = stateManager
+        self.configManager = configManager
+        self.state = 
+        TODO
+
+    PROGRAM = StateManager.PROGRAM
+    DEBUG = StateManager.DEBUG
+    RUN = StateManager.RUN
+    CRITICAL_FAULT = EventManager.CRITICAL_FAULT
+
+class IncrementalSsdMode(SsdMode):
     def __init__(self, ssdDriver):
         SsdMode.__init__(self)
-        self.states = collections.deque([
+        self.states = self.getInitialStates(ssdDriver)
+        self.ssdDriver = ssdDriver
+
+    def getInitialStates(self, ssdDriver):
+        return collections.deque([
             ssdDriver.CHAR_0,
             ssdDriver.CHAR_1,
             ssdDriver.CHAR_2,
@@ -199,16 +238,18 @@ class NormalSsdMode(SsdMode):
             ssdDriver.CHAR_F,
             ssdDriver.CHAR_NONE,
         ])
-        self.ssdDriver = ssdDriver
 
     def onTick(self):
         s = self.states.popleft()
         self.ssdDriver.display(s)
         self.states.append(s)
 
-class ReversedNormalSsdMode(NormalSsdMode):
+    def onExit(self):
+        self.states = self.getInitialStates(self.ssdDriver)
+
+class DecrementalSsdMode(IncrementalSsdMode):
     def __init__(self, ssdDriver):
-        NormalSsdMode.__init__(self, ssdDriver)
+        IncrementalSsdMode.__init__(self, ssdDriver)
 
     def onTick(self):
         s = self.states.pop()
@@ -217,9 +258,9 @@ class ReversedNormalSsdMode(NormalSsdMode):
 
 class SsdModeManager:
     def __init__(self, ssdDriver, timer):
-        self.normalSsdMode = NormalSsdMode(ssdDriver)
-        self.reversedNormalSsdMode = ReversedNormalSsdMode(ssdDriver)
-        self.mode = self.normalSsdMode
+        self.incrementalSsdMode = IncrementalSsdMode(ssdDriver)
+        self.decrementalSsdMode = DecrementalSsdMode(ssdDriver)
+        self.mode = self.incrementalSsdMode
         self.tickTimeSec = 1
         self.timer = timer
         self.timer.after(self.tickTimeSec * 1000, self.onTick)
@@ -236,10 +277,10 @@ class SsdModeManager:
             self.mode.onEntry()
 
     def getNextMode(self):
-        if self.mode == self.normalSsdMode:
-            return self.reversedNormalSsdMode
+        if self.mode == self.incrementalSsdMode:
+            return self.decrementalSsdMode
         else:
-            return self.normalSsdMode
+            return self.incrementalSsdMode
 
 
 class ServiceSwitchButton(Button):
@@ -303,7 +344,48 @@ class ServiceSwitchServiceOrganizer:
 
     def onClick(self):
         self.ssdModeManager.onEvent()
-        
+    
+class Publisher:
+    def __init__(self):
+        self.subscribers = []
+
+    def subscribe(self, callback):
+        self.subscribers.append(callback)
+
+    def update(self, something):
+        for s in self.subscribers:
+            s(something)
+
+class StateManager(Publisher):
+    def __init__(self):
+        self.state = self.INITIALIZING
+
+    def transit(self, nextState):
+        if nextState != self.state:
+            self.state = nextState
+            self.update(self.state)
+
+    INITIALIZING = 'initializing'
+    PROGRAM = 'program'
+    DEBUG = 'debug'
+    RUN = 'run'
+
+class EventManager:
+    def __init__(self):
+        pass
+
+    CRITICAL_FAULT = 'critical_fault'
+
+class ConfigManager:
+    def __init__(self):
+        #self.signature = 'ABCD'
+        self.signature = None
+
+    def setSignature(self, signature):
+        self.signature = signature
+
+    def getSignature(self):
+        return self.signature
 
 class Application(Frame):
     def say_hi(self):
