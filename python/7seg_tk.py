@@ -74,6 +74,41 @@ class ConfigManager(Publisher):
     def getSignature(self):
         return self.signature
 
+class LoggingManager(Publisher):
+    NO_LOGGING_SETTINGS = '1'
+    WAITING_FOR_TRIGGER = '2'
+    TRIGGERRED = '3'
+    COMPLETED = '4'
+
+    def __init__(self, stateSelector, timer):
+        Publisher.__init__(self)
+        self.stateSelector = stateSelector
+        self.state = LoggingManager.NO_LOGGING_SETTINGS
+        self.timer = timer
+        self.tickTimeMillisec = 100
+        self.updateState()
+
+    def updateState(self):
+        s = self.stateSelector.getState()
+        if s == self.stateSelector.NO_LOGGING_SETTINGS:
+            n = self.NO_LOGGING_SETTINGS
+        elif s == self.stateSelector.WAITING_FOR_TRIGGER:
+            n = self.WAITING_FOR_TRIGGER
+        elif s == self.stateSelector.TRIGGERRED:
+            n = self.TRIGGERRED
+        else:
+            n = self.COMPLETED
+        self.transit(n)
+        self.timer.after(self.tickTimeMillisec, self.updateState)
+
+    def transit(self, nextState):
+        if nextState != self.state:
+            self.state = nextState
+            self.update()
+
+    def getState(self):
+        return self.state
+
 class SsdCanvas(Canvas):
     """
     https://en.wikipedia.org/wiki/Seven-segment_display
@@ -389,15 +424,17 @@ class SsdTestMode(SsdMode):
         self.currentIndex += 1
 
 class NormalSsdMode(SsdMode):
-    def __init__(self, ssdDriver, stateManager, configManager, eventManager):
+    def __init__(self, ssdDriver, stateManager, configManager, eventManager, loggingManager):
         self.ssdDriver = ssdDriver
         self.stateManager = stateManager
         self.configManager = configManager
         self.eventManager = eventManager
+        self.loggingManager = loggingManager
         self.updateState()
         self.stateManager.subscribe(self.updateState)
         self.configManager.subscribe(self.updateState)
         self.eventManager.subscribe(self.updateState)
+        self.loggingManager.subscribe(self.updateDotState)
         self.on = True
 
     def updateState(self):
@@ -411,6 +448,12 @@ class NormalSsdMode(SsdMode):
                 self.state = self.RUN
             else:
                 self.state = self.PROGRAM
+
+    def updateDotState(self):
+        s = self.loggingManager.getState()
+        if s == LoggingManager.NO_LOGGING_SETTINGS:
+            #self.dot.
+            pass
 
     def onTick(self):
         if self.state == self.PROGRAM:
@@ -609,6 +652,43 @@ class StateSelectRadioButton:
         else:
             return self.RUN
 
+class LoggingSelectRadioButton:
+    NO_LOGGING_SETTINGS = 'NO_LOGGING_SETTINGS'
+    WAITING_FOR_TRIGGER = 'WAITING_FOR_TRIGGER'
+    TRIGGERRED = 'TRIGGERRED'
+    COMPLETED = 'COMPLETED'
+    def __init__(self, master):
+        MODES = [
+            ('NO_LOGGING_SETTINGS', '1'),
+            ('WAITING_FOR_TRIGGER', '2'),
+            ('TRIGGERRED',          '3'),
+            ('COMPLETED',           '4'),
+            ]
+        v = StringVar()
+        # https://stackoverflow.com/questions/6548837/how-do-i-get-an-event-callback-when-a-tkinter-entry-widget-is-modified
+        v.trace("w", lambda name, index, mode, sv=v: self.callback(sv))
+        v.set('1')
+
+        for text, mode in MODES:
+            b = Radiobutton(master, text=text, variable=v, value=mode)
+            b.pack(anchor=W)
+        self.v = v
+
+    def callback(self, sv):
+        #sv.get()
+        pass
+
+    def getState(self):
+        v = self.v.get()
+        if v == '1':
+            return self.NO_LOGGING_SETTINGS
+        elif v == '2':
+            return self.WAITING_FOR_TRIGGER
+        elif v == '3':
+            return self.TRIGGERRED
+        else:
+            return self.COMPLETED
+
 class Application(Frame):
     def say_hi(self):
         print "hi threre, everyone!"
@@ -627,11 +707,13 @@ class Application(Frame):
 
         self.hi_there.pack({'side' : 'left'})
 
-        radioButton = StateSelectRadioButton(self)
+        stateRadioButton = StateSelectRadioButton(self)
+        loggingRadioButton = LoggingSelectRadioButton(self)
 
         stateManager = StateManager(radioButton, self)
         configManager = ConfigManager()
         eventManager = EventManager()
+        loggingManager = LoggingManager(loggingRadioButton)
         ssdDriver = SsdDriver(SsdCanvas(self), SsdCanvas(self))
         self.ssdModeManager = SsdModeManager(ssdDriver, self, stateManager, configManager, eventManager)
         self.ssServiceOrganizer = ServiceSwitchServiceOrganizer(ServiceSwitchDriver(ServiceSwitchButton(self), self), self.ssdModeManager)
@@ -645,3 +727,4 @@ root = Tk()
 app = Application(master=root)
 app.mainloop()
 root.destroy()
+
