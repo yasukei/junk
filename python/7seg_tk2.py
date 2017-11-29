@@ -3,6 +3,30 @@
 
 # refer: http://docs.python.jp/2/library/tkinter.html
 
+class StateManager:
+    def __init__(self):
+        pass
+
+class ConfigManager:
+    def __init__(self):
+        pass
+
+class EventManager:
+    def __init__(self):
+        pass
+
+class LoggingManager:
+    NO_SETTING              = 1
+    WAITING_FOR_TRIGGER     = 1
+    TRIGGERED_AND_LOGGING   = 1
+    COMPLETED               = 1
+
+    def __init__(self):
+        pass
+    def getState(self):
+        # TODO
+        return self.NO_SETTING
+
 class SsdState:
     def __init__(self):
         pass
@@ -99,6 +123,17 @@ class SsdNormalMode(SsdState):
             lambda elapsed_timeMillisec: self.sign3 if self.sign3 != None else self.ssdDriver.CHAR_HIPHEN
             )
         self.changeCurrentAnimation(self.animationForDebugForLeft, self.animationForDebugForRight)
+        self.dotOffAnimation = SsdStaticAnimation([
+            SsdFrame(SsdDriver.SEG_NONE,  0),
+            ])
+        self.dotOnAnimation = SsdStaticAnimation([
+            SsdFrame(SsdDriver.SEG_DP,    0),
+            ])
+        self.dotBlinkAnimation = SsdStaticAnimation([
+            SsdFrame(SsdDriver.SEG_NONE,  500),
+            SsdFrame(SsdDriver.SEG_DP,    500),
+            ])
+        self.changeCurrentDotAnimation(self.dotOffAnimation, self.dotOffAnimation)
         self.ssdDriver = ssdDriver
         self.stateManager.subscribe(self.notifyStateManagerUpdated)
         self.configManager.subscribe(self.notifyConfigManagerUpdated)
@@ -110,6 +145,12 @@ class SsdNormalMode(SsdState):
         self.current_animationForLeft.restartAnimation()
         self.current_animationForRight.restartAnimation()
 
+    def changeCurrentDotAnimation(self, left_anim, right_anim):
+        self.current_dotAnimationForLeft = left_anim
+        self.current_dotAnimationForRight = right_anim
+        self.current_dotAnimationForLeft.restartAnimation()
+        self.current_dotAnimationForRight.restartAnimation()
+
     def notifyStateManagerUpdated(self):
         s = self.stateManager.getState()
         if s == self.stateManager.RUN:
@@ -119,20 +160,41 @@ class SsdNormalMode(SsdState):
         else:
             self.changeCurrentAnimation(self.animationForProgramForLeft, self.animationForProgramForRight)
 
-    def notifyLoggingManagerUpdated(self):
-        pass # TODO: update myself for displaying dot
-
     def notifyConfigManagerUpdated(self):
         self.sign2 = self.configManager.getSign2()
         self.sign3 = self.configManager.getSign3()
 
+    def notifyLoggingManagerUpdated(self):
+        s = self.loggingManager.getState()
+        if s == self.loggingManager.COMPLETED:
+            self.changeCurrentDotAnimation(self.dotOffAnimation, self.dotOnAnimation)
+        elif s == self.loggingManager.TRIGGERED_AND_LOGGING:
+            self.changeCurrentDotAnimation(self.dotOnAnimation, self.dotBlinkAnimation)
+        elif s == self.loggingManager.WAITING_FOR_TRIGGER:
+            self.changeCurrentDotAnimation(self.dotOnAnimation, self.dotOffAnimation)
+        else:
+            self.changeCurrentDotAnimation(self.dotOffAnimation, self.dotOffAnimation)
+
     def onTick(self, elapsed_timeMillisec):
         l = self.current_animationForLeft.getPicture(elapsed_timeMillisec)
         r = self.current_animationForRight.getPicture(elapsed_timeMillisec)
-        self.ssdDriver.display(l, r)
+        ld = self.current_dotAnimationForLeft.getPicture(elapsed_timeMillisec)
+        rd = self.current_dotAnimationForRight.getPicture(elapsed_timeMillisec)
+        self.ssdDriver.display(l + ld, r + rd)
 
 class SsdFaultMode:
-    pass
+    def __init__(self, ssdDriver, eventManager):
+        self.state = None
+        self.stateManager.subscribe(self.notifyEventManagerUpdated)
+
+    def notifyEventManagerUpdated(self):
+        pass
+
+    def onTick(self, elapsed_timeMillisec):
+        l = None
+        r = None
+        # TODO
+        self.ssdDriver.display(l, r)
 
 class SsdServiceSwitchMode:
     pass
