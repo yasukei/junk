@@ -3,6 +3,17 @@
 
 # refer: http://docs.python.jp/2/library/tkinter.html
 
+class Publisher:
+    def __init__(self):
+        self.subscribers = []
+
+    def subscribe(self, callback):
+        self.subscribers.append(callback)
+
+    def update(self):
+        for s in self.subscribers:
+            s()
+
 class StateManager:
     def __init__(self):
         pass
@@ -38,19 +49,38 @@ class SsdState:
         pass
 
 class SsdFrame:
+    def __init__(self):
+        pass
+    def getPicture(self):
+        pass
+    def getDurationTime(self):
+        pass
+
+class SsdStaticFrame(SsdFrame):
     def __init__(self, picture, duration_time):
+        SsdFrame.__init__(self)
         self.picture = picture
         self.duration_time = duration_time
 
-class SsdAnimation:
-    def __init__(self):
-        pass
-    def restartAnimation(self):
-        pass
-    def getPicture(self, elapsed_timeMillisec):
-        pass
+    def getPicture(self):
+        return self.picture
 
-class SsdStaticAnimation:
+    def getDurationTime(self):
+        return self.duration_time
+
+class SsdDynamicFrame(SsdFrame):
+    def __init__(self, getPicture, duration_time):
+        SsdFrame.__init__(self)
+        self.getPicture = getPicture
+        self.duration_time = duration_time
+
+    def getPicture(self):
+        return self.getPicture()
+
+    def getDurationTime(self):
+        return self.duration_time
+
+class SsdAnimation:
     def __init__(self, frames):
         self.frames = frames
         self.restartAnimation()
@@ -61,36 +91,24 @@ class SsdStaticAnimation:
     def getPicture(self, elapsed_timeMillisec):
         self.elapsed_timeMillisec += elapsed_timeMillisec
         for f in self.frames:
-            if f.duration_time > self.elapsed_timeMillisec:
-                return f.picture
+            if f.getDurationTime() > self.elapsed_timeMillisec:
+                return f.getPicture()
         self.elapsed_timeMillisec = 0
         last_index = len(self.frames)
-        return self.frames.index(last_index).picture
-
-class SsdDynamicAnimation:
-    def __init__(self, getDynamicPicture):
-        self.getDynamicPicture = getDynamicPicture
-        self.restartAnimation()
-
-    def restartAnimation(self):
-        self.elapsed_timeMillisec = 0
-
-    def getPicture(self, elapsed_timeMillisec):
-        self.elapsed_timeMillisec += elapsed_timeMillisec
-        return self.getDynamicPicture(self.elapsed_timeMillisec)
+        return self.frames.index(last_index).getPicture()
 
 class SsdTestMode(SsdState):
     def __init__(self, ssdDriver):
-        self.animation = SsdStaticAnimation([
-            SsdFrame(SsdDriver.SEG_F,    250),
-            SsdFrame(SsdDriver.SEG_A,    250),
-            SsdFrame(SsdDriver.SEG_B,    250),
-            SsdFrame(SsdDriver.SEG_C,    250),
-            SsdFrame(SsdDriver.SEG_D,    250),
-            SsdFrame(SsdDriver.SEG_E,    250),
-            SsdFrame(SsdDriver.SEG_G,    250),
-            SsdFrame(SsdDriver.SEG_DP,   250),
-            SsdFrame(SsdDriver.SEG_NONE, 250),
+        self.animation = SsdAnimation([
+            SsdStaticFrame(SsdDriver.SEG_F,    250),
+            SsdStaticFrame(SsdDriver.SEG_A,    250),
+            SsdStaticFrame(SsdDriver.SEG_B,    250),
+            SsdStaticFrame(SsdDriver.SEG_C,    250),
+            SsdStaticFrame(SsdDriver.SEG_D,    250),
+            SsdStaticFrame(SsdDriver.SEG_E,    250),
+            SsdStaticFrame(SsdDriver.SEG_G,    250),
+            SsdStaticFrame(SsdDriver.SEG_DP,   250),
+            SsdStaticFrame(SsdDriver.SEG_NONE, 250),
             ])
         self.ssdDriver = ssdDriver
 
@@ -100,38 +118,42 @@ class SsdTestMode(SsdState):
 
 class SsdNormalMode(SsdState):
     def __init__(self, ssdDriver, stateManager, configManager, loggingManager):
-        self.animationForDebugForLeft = SsdStaticAnimation([
-            SsdFrame(SsdDriver.CHAR_HIPHEN, 0),
+        self.animationForDebugForLeft = SsdAnimation([
+            SsdStaticFrame(SsdDriver.CHAR_HIPHEN, 0),
             ])
-        self.animationForDebugForRight = SsdStaticAnimation([
-            SsdFrame(SsdDriver.CHAR_HIPHEN, 0),
+        self.animationForDebugForRight = SsdAnimation([
+            SsdStaticFrame(SsdDriver.CHAR_HIPHEN, 0),
             ])
-        self.animationForProgramForLeft = SsdStaticAnimation([
-            SsdFrame(SsdDriver.CHAR_HIPHEN, 500),
-            SsdFrame(SsdDriver.SEG_NONE,    500),
+        self.animationForProgramForLeft = SsdAnimation([
+            SsdStaticFrame(SsdDriver.CHAR_HIPHEN, 500),
+            SsdStaticFrame(SsdDriver.SEG_NONE,    500),
             ])
-        self.animationForProgramForRight = SsdStaticAnimation([
-            SsdFrame(SsdDriver.CHAR_HIPHEN, 500),
-            SsdFrame(SsdDriver.SEG_NONE,    500),
+        self.animationForProgramForRight = SsdAnimation([
+            SsdStaticFrame(SsdDriver.CHAR_HIPHEN, 500),
+            SsdStaticFrame(SsdDriver.SEG_NONE,    500),
             ])
         self.sign2 = None
         self.sign3 = None
-        self.animationForRunForLeft = SsdDynamicAnimation(
-            lambda elapsed_timeMillisec: self.sign2 if self.sign2 != None else self.ssdDriver.CHAR_HIPHEN
-            )
-        self.animationForRunForRight = SsdDynamicAnimation(
-            lambda elapsed_timeMillisec: self.sign3 if self.sign3 != None else self.ssdDriver.CHAR_HIPHEN
+        self.animationForRunForLeft = SsdAnimation([
+            SsdDynamicFrame(
+                lambda elapsed_timeMillisec: self.sign2 if self.sign2 != None else self.ssdDriver.CHAR_HIPHEN,
+                0)
+            ])
+        self.animationForRunForRight = SsdAnimation([
+            SsdDynamicFrame(
+                lambda elapsed_timeMillisec: self.sign3 if self.sign3 != None else self.ssdDriver.CHAR_HIPHEN,
+                0)
             )
         self.changeCurrentAnimation(self.animationForDebugForLeft, self.animationForDebugForRight)
-        self.dotOffAnimation = SsdStaticAnimation([
-            SsdFrame(SsdDriver.SEG_NONE,  0),
+        self.dotOffAnimation = SsdAnimation([
+            SsdStaticFrame(SsdDriver.SEG_NONE,  0),
             ])
-        self.dotOnAnimation = SsdStaticAnimation([
-            SsdFrame(SsdDriver.SEG_DP,    0),
+        self.dotOnAnimation = SsdAnimation([
+            SsdStaticFrame(SsdDriver.SEG_DP,    0),
             ])
-        self.dotBlinkAnimation = SsdStaticAnimation([
-            SsdFrame(SsdDriver.SEG_NONE,  500),
-            SsdFrame(SsdDriver.SEG_DP,    500),
+        self.dotBlinkAnimation = SsdAnimation([
+            SsdStaticFrame(SsdDriver.SEG_NONE,  500),
+            SsdStaticFrame(SsdDriver.SEG_DP,    500),
             ])
         self.changeCurrentDotAnimation(self.dotOffAnimation, self.dotOffAnimation)
         self.ssdDriver = ssdDriver
@@ -182,19 +204,108 @@ class SsdNormalMode(SsdState):
         rd = self.current_dotAnimationForRight.getPicture(elapsed_timeMillisec)
         self.ssdDriver.display(l + ld, r + rd)
 
-class SsdFaultMode:
-    def __init__(self, ssdDriver, eventManager):
-        self.state = None
-        self.stateManager.subscribe(self.notifyEventManagerUpdated)
+class FaultRecord:
+    def __init__(self, errorCode, annexs=[]):
+        self.errorCode = errorCode
+        self.annexs = annexs
 
-    def notifyEventManagerUpdated(self):
+class FaultLogTranslationKnowledge:
+    def __init__(self, eventId, translationMethod):
+        self.eventId = eventId
+        self.translationMethod = translationMethod
+
+    def tralslate(self, faultLog):
+        return self.translationMethod(faultLog)
+
+class FaultLogTranslator:
+    def __init__(self):
+        self.transKnowledges = [
+                    FaultLogTranslationKnowledge(0x1000, self.translationFor0x1000),
+                    FaultLogTranslationKnowledge(0x1001, self.translationFor0x1001),
+                ]
+
+    def translate(self, faultLogs=[]):
+        records = []
+        for f in faultLogs:
+            record = self.translateToFaultRecord(f)
+        return records
+
+    def translateToFaultRecord(self, faultLog):
+        eventId = faultLog.getEventId()
+        for k in self.transKnowledges:
+            if k.eventId == eventId:
+                k.translate(faultLog)
+        return None
+
+    def translationFor0x1000(self, faultLog):
+        return FaultRecord(0x10, [])
+
+    def translationFor0x1001(self, faultLog):
+        return FaultRecord(0x10, [0x01])
+
+class FaultWatcher(Publisher):
+    def __init__(self, eventManager):
+        self.Publisher.__init__(self)
+        self.faultLog = []
+        self.updateCount = eventManager.getUpdateCount()
+        self.eventManager = eventManager
+
+    def cyclicTask(self):
+        if self.eventManager.getUpdateCount() != self.updateCount:
+            faultLogs = self.eventManager.readFaultLogs()
+            self.lock()
+            self.faultRecords = self.translator(faultLogs)
+            self.unlock()
+            self.update()
+
+    def updateFaultRecords(self, faultLogs):
+        self.lock()
+        self.faultRecords = self.translator(faultLogs)
+        self.unlock()
+
+    def readFaultRecords(self):
+        self.lock()
+        r = self.faultRecords
+        self.unlock()
+        return r
+
+    def lock(self):
         pass
+    def unlock(self):
+        pass
+
+class SsdFaultMode:
+    def __init__(self, ssdDriver, faultWatcher, ssdStateMachine):
+        self.ssdSM = ssdStateMachine
+        self.faultRecordsUpdated = False
+        self.faultRecords = []
+        self.faultWatcher.subscribe(self.notifyFaultWatcherUpdated)
+        self.animationForLeft = SsdAnimation([
+            SsdDynamicFrame(
+                # the number of frames are variable when SsdFaultMode, but current SsdAnimation is fixed at initialized
+                0)
+            )
+
+    def notifyFaultWatcherUpdated(self):
+        self.lock()
+        self.faultRecords = self.faultWatcher.readFaultRecords()
+        self.faultRecordsUpdated = True
+        self.unlock()
+        if len(self.faultRecords) == 0:
+            self.ssdSM.onEvent(eEvent_onFaultRemoved)
+        else:
+            self.ssdSM.onEvent(eEvent_onFaultOccured)
 
     def onTick(self, elapsed_timeMillisec):
         l = None
         r = None
         # TODO
         self.ssdDriver.display(l, r)
+
+    def lock(self):
+        pass
+    def unlock(self):
+        pass
 
 class SsdServiceSwitchMode:
     pass
