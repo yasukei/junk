@@ -214,7 +214,7 @@ class FaultLogTranslationKnowledge:
         self.eventId = eventId
         self.translationMethod = translationMethod
 
-    def tralslate(self, faultLog):
+    def translate(self, faultLog):
         return self.translationMethod(faultLog)
 
 class FaultLogTranslator:
@@ -254,14 +254,9 @@ class FaultWatcher(Publisher):
         if self.eventManager.getUpdateCount() != self.updateCount:
             faultLogs = self.eventManager.readFaultLogs()
             self.lock()
-            self.faultRecords = self.translator(faultLogs)
+            self.faultRecords = self.translator.translate(faultLogs)
             self.unlock()
             self.update()
-
-    def updateFaultRecords(self, faultLogs):
-        self.lock()
-        self.faultRecords = self.translator(faultLogs)
-        self.unlock()
 
     def readFaultRecords(self):
         self.lock()
@@ -278,28 +273,41 @@ class SsdFaultMode:
     def __init__(self, ssdDriver, faultWatcher, ssdStateMachine):
         self.ssdSM = ssdStateMachine
         self.faultRecordsUpdated = False
-        self.faultRecords = []
         self.faultWatcher.subscribe(self.notifyFaultWatcherUpdated)
-        self.animationForLeft = SsdAnimation([
-            SsdDynamicFrame(
-                # the number of frames are variable when SsdFaultMode, but current SsdAnimation is fixed at initialized
-                0)
-            )
+        self.animation = None
 
     def notifyFaultWatcherUpdated(self):
         self.lock()
-        self.faultRecords = self.faultWatcher.readFaultRecords()
+        faultRecords = self.faultWatcher.readFaultRecords()
         self.faultRecordsUpdated = True
         self.unlock()
-        if len(self.faultRecords) == 0:
+        self.updateAnimation(faultRecords)
+        if len(faultRecords) == 0:
             self.ssdSM.onEvent(eEvent_onFaultRemoved)
         else:
             self.ssdSM.onEvent(eEvent_onFaultOccured)
 
+    def updateAnimation(self, faultRecords):
+        self.animation = []
+        for r in faultRecords:
+            # need to divide errorCode into left and right animation separately
+            self.animation.append(
+                    SsdStaticFrame(self.convertHexToSsdCode(r.errorCode)),
+                    1000
+                    )
+            self.animation.append(SsdDriver.SEG_NONE, 100)
+            for annex in r.annexs:
+                self.animation.append(
+                        SsdStaticFrame(self.convertHexToSsdCode(annex))
+                        )
+                self.animation.append(SsdDriver.SEG_NONE, 300)
+
+    def convertHexToSsdCode(byteValue):
+        pass
+
     def onTick(self, elapsed_timeMillisec):
-        l = None
-        r = None
-        # TODO
+        l = self.animation.getPicture() # need to adjust this with self.updateAnimation()
+        r = self.animation.getPicture() # need to adjust this with self.updateAnimation()
         self.ssdDriver.display(l, r)
 
     def lock(self):
