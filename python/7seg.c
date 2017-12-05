@@ -1,9 +1,21 @@
 #include <stdio.h>
 
+//-------------------------------------------------------------------
+// SsdModeState
+//-------------------------------------------------------------------
+typedef struct SsdModeState SsdModeState;
+struct SsdModeState
+{
+	int dummy; // TODO: how to implement interface in C?
+};
+
 #define SsdModeState_onEntry(self)	( (self)->onEntry( (self) ) )
 #define SsdModeState_onExit(self)	( (self)->onExit( (self) ) )
 #define SsdModeState_onTick(self, elapsedTimeMillisec)	( (self)->onTick( (self), (elapsedTimeMillisec) ) )
 
+//-------------------------------------------------------------------
+// SsdModeTransitionEvent
+//-------------------------------------------------------------------
 typedef enum eSsdModeTransitionEvent eSsdModeTransitionEvent;
 enum eSsdModeTransitionEvent
 {
@@ -18,6 +30,9 @@ enum eSsdModeTransitionEvent
 	eSsdModeTransitionEvent_numofEvents,
 };
 
+//-------------------------------------------------------------------
+// SsdModeTransition
+//-------------------------------------------------------------------
 typedef struct SsdModeTransition SsdModeTransition;
 struct SsdModeTransition
 {
@@ -39,7 +54,7 @@ struct SsdModeStateMachine
 };
 
 //-------------------------------------------------------------------
-Bool SsdModeStateMachine_initialize(
+void SsdModeStateMachine_initialize(
 	SsdModeStateMachine* self
 	)
 {
@@ -73,6 +88,7 @@ Bool SsdModeStateMachine_addTransition(
 
 	SsdModeTransition_initialize(&self->transitions[self->numofTransitions], srcState, dstState, event);
 	self->numofTransitions += 1;
+	return TRUE
 }
 
 //-------------------------------------------------------------------
@@ -88,6 +104,7 @@ void SsdModeStateMachine_onEvent(
 	for(index = 0; index < self->numofTransitions; index++)
 	{
 		SsdModeTransition transition = &self->transitions[index];
+
 		if(SsdModeTransition_canTransit(transition, self->state, event))
 		{
 			SsdModeState dstState = SsdModeTransition_getDstState(transition);
@@ -124,6 +141,54 @@ static void __SsdModeStateMachine_unlock(
 	)
 {
 	// TODO	
+}
+
+//-------------------------------------------------------------------
+// SsdManager
+//-------------------------------------------------------------------
+uint8_t SsdManager_initial(
+	void
+	)
+{
+	return TRUE; // TODO
+}
+
+//-------------------------------------------------------------------
+typedef struct SsdManager SsdManager;
+struct SsdManager
+{
+	SsdModeStateMachine stateMachine;
+};
+
+//-------------------------------------------------------------------
+static SsdManager* __SsdManager_getInstance(
+	void
+	)
+{
+	
+}
+
+//-------------------------------------------------------------------
+Bool SsdManager_initialize(
+	StateManager* stateManager,
+	ConfigManager* configManager,
+	EventManager* eventManager,
+	LoggingManager* loggingManager,
+	ServiceSwitchDriver* serviceSwitchDriver,
+	SsdDriver* ssdDriver
+	)
+{
+	SsdManager* self;
+	SsdModeState* testMode;
+	SsdModeState* normalMode;
+	SsdModeState* faultMode;
+	SsdModeState* serviceSwitchMode;
+	SsdModeState* restoreMode;
+	SsdModeState* criticalFaultMode;
+
+	SsdModeStateMachine_initialize(&self->stateMachine);
+
+	return TRUE; // TODO
 }
 
 int main(void)
