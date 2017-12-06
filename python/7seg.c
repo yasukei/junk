@@ -3,8 +3,8 @@
 
 // TODO: delete
 #define Bool	uint8_t
-#define TRUE	1
-#define FALSE	0
+#define TRUE	((Bool)1)
+#define FALSE	((Bool)0)
 
 //-------------------------------------------------------------------
 // ServiceSwitchDriverWrapper
@@ -919,7 +919,7 @@ struct SsdModeStateMachineFactory
 SsdModeStateMachineFactory G_SsdModeStateMachineFactory;
 
 //-------------------------------------------------------------------
-SsdModeStateMachine* SsdModeStateMachineFactory_getInstance(
+SsdModeStateMachineFactory* SsdModeStateMachineFactory_getInstance(
 	void
 	)
 {
@@ -958,7 +958,7 @@ SsdModeStateMachine* SsdModeStateMachineFactory_createStateMachine(
 	SsdModeStateMachine_addTransition(sm, normalMode, serviceSwitchMode,	eSsdModeTransitionEvent_onServiceSwitchOn);
 	SsdModeStateMachine_addTransition(sm, normalMode, criticalFaultMode,	eSsdModeTransitionEvent_onCriticalFault);
 
-	return TRUE; // TODO
+	return sm; // TODO
 }
 
 //-------------------------------------------------------------------
@@ -1009,18 +1009,18 @@ uint8_t SsdManager_initial(
 
 	//ServiceSwitchDriverWrapper_initialize(self->serviceSwitchDriver);
 	//SsdDriverWrapper_initialize(self->serviceSwitchDriver);
-	StateEventMessanger_initialize(self->stateEventMessanger);
-	ConfigEventMessanger_initialize(self->configEventMessanger);
-	DataLoggingEventMessanger_initialize(self->dataLoggingEventMessanger);
-	FaultLogWatcher_initialize(self->faultLogWatcher);
+	StateEventMessanger_initialize(&self->stateEventMessanger);
+	ConfigEventMessanger_initialize(&self->configEventMessanger);
+	DataLoggingEventMessanger_initialize(&self->dataLoggingEventMessanger);
+	FaultLogWatcher_initialize(&self->faultLogWatcher);
 
 	self->sm = SsdModeStateMachineFactory_createStateMachine(
-					self->stateEventMessanger,
-					self->configEventMessanger,
-					self->dataLoggingEventMessanger,
-					self->faultLogWatcher,
-					self->ssdDriver,
-					self->serviceSwitchDriver
+					&self->stateEventMessanger,
+					&self->configEventMessanger,
+					&self->dataLoggingEventMessanger,
+					&self->faultLogWatcher,
+					&self->ssdDriver,
+					&self->serviceSwitchDriver
 					);
 
 	return TRUE; // TODO
