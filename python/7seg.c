@@ -574,30 +574,32 @@ SsdPicture SsdAnimation_getPicture(
 //-------------------------------------------------------------------
 // SsdModeState
 //-------------------------------------------------------------------
+typedef struct SsdModeStateMethods SsdModeStateMethods;
 typedef struct SsdModeState SsdModeState;
 
 typedef void (*SsdModeStateMethod_onEntry)(SsdModeState* self);
 typedef void (*SsdModeStateMethod_onExit)(SsdModeState* self);
 typedef void (*SsdModeStateMethod_onTick)(SsdModeState* self, uint32_t elapsedTimeMillisec);
 
-struct SsdModeState
+struct SsdModeStateMethods
 {
 	SsdModeStateMethod_onEntry	onEntry;
 	SsdModeStateMethod_onExit	onExit;
 	SsdModeStateMethod_onTick	onTick;
 };
 
+struct SsdModeState
+{
+	SsdModeStateMethods* methods;
+};
+
 //-------------------------------------------------------------------
 void SsdModeState_initializeMethods(
 	SsdModeState* self,
-	SsdModeStateMethod_onEntry	onEntry,
-	SsdModeStateMethod_onExit	onExit,
-	SsdModeStateMethod_onTick	onTick
+	SsdModeStateMethods* methods
 	)
 {
-	self->onEntry	= onEntry;
-	self->onExit	= onExit;
-	self->onTick	= onTick;
+	self->methods = methods;
 }
 
 //-------------------------------------------------------------------
@@ -613,7 +615,7 @@ void SsdModeState_onEntry(
 	SsdModeState* self
 	)
 {
-	self->onEntry(self);
+	self->methods->onEntry(self);
 }
 
 //-------------------------------------------------------------------
@@ -621,7 +623,7 @@ void SsdModeState_onExit(
 	SsdModeState* self
 	)
 {
-	self->onExit(self);
+	self->methods->onExit(self);
 }
 
 //-------------------------------------------------------------------
@@ -630,7 +632,7 @@ void SsdModeState_onTick(
 	uint32_t elapsedTimeMillisec
 	)
 {
-	self->onTick(self, elapsedTimeMillisec);
+	self->methods->onTick(self, elapsedTimeMillisec);
 }
 
 //-------------------------------------------------------------------
@@ -680,6 +682,14 @@ void SsdTestMode_onTick(
 }
 
 //-------------------------------------------------------------------
+SsdModeStateMethods G_SsdTestModeMethods =
+{
+	SsdTestMode_onEntry,
+	SsdModeState_doNothing,
+	SsdTestMode_onTick,
+};
+
+//-------------------------------------------------------------------
 void SsdTestMode_initialize(
 	SsdTestMode* self,
 	SsdDriverWrapper* ssdDriver
@@ -707,13 +717,110 @@ void SsdTestMode_initialize(
 
 	SsdModeState_initializeMethods(
 		(SsdModeState*)self,
-		SsdTestMode_onEntry,
-		SsdModeState_doNothing,
-		SsdTestMode_onTick
+		&G_SsdTestModeMethods
 		);
 
 	SsdAnimation_initialize(&self->animation);
 	for(index = 0; index < cSsdTestMode_numofFrames; index++)
+	{
+		SsdFrame_initialize(
+			&self->frames[index],
+			initialValues[index].picture,
+			initialValues[index].durationTime
+			);
+		SsdAnimation_addFrame(&self->animation, &self->frames[index]);
+	}
+
+	self->ssdDriver = ssdDriver;
+}
+
+//-------------------------------------------------------------------
+// SsdNormalMode
+//-------------------------------------------------------------------
+typedef struct SsdNormalMode SsdNormalMode;
+
+#define cSsdNormalMode_numofFrames	9
+
+struct SsdNormalMode
+{
+	SsdModeState base;
+	SsdFrame frames[cSsdNormalMode_numofFrames];
+	SsdAnimation animation;
+	SsdDriverWrapper* ssdDriver;
+};
+
+//-------------------------------------------------------------------
+void SsdNormalMode_onEntry(
+	SsdModeState* base
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)base;
+	SsdPicture picture;
+
+	SsdAnimation_restartAnimation(&self->animation);
+	picture = SsdAnimation_getFirstPicture(&self->animation);
+	SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+}
+
+//-------------------------------------------------------------------
+void SsdNormalMode_onTick(
+	SsdModeState* base,
+	uint32_t elapsedTimeMillisec
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)base;
+	SsdPicture picture;
+	Bool isFinished = FALSE;
+
+	picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
+	if(isFinished)
+	{
+		SsdAnimation_restartAnimation(&self->animation);
+	}
+	SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+}
+
+//-------------------------------------------------------------------
+SsdModeStateMethods G_SsdNormalModeMethods =
+{
+	SsdNormalMode_onEntry,
+	SsdModeState_doNothing,
+	SsdNormalMode_onTick,
+};
+
+//-------------------------------------------------------------------
+void SsdNormalMode_initialize(
+	SsdNormalMode* self,
+	SsdDriverWrapper* ssdDriver
+	)
+{
+	struct
+	{
+		SsdPicture picture;
+		uint32_t durationTime;
+	}
+	initialValues[] =
+	{
+		// TODO: change proper value for SsdDriver
+		{ 'F', 250},
+		{ 'A', 250},
+		{ 'B', 250},
+		{ 'C', 250},
+		{ 'D', 250},
+		{ 'E', 250},
+		{ 'G', 250},
+		{ '.', 250},
+		{ ' ', 250},
+	};
+	int index;
+
+	SsdModeState_initializeMethods(
+		(SsdModeState*)self,
+		&G_SsdNormalModeMethods
+		);
+
+	SsdAnimation_initialize(&self->animation);
+	for(index = 0; index < cSsdNormalMode_numofFrames; index++)
 	{
 		SsdFrame_initialize(
 			&self->frames[index],
@@ -967,7 +1074,7 @@ SsdModeStateMachine* SsdModeStateMachineFactory_createStateMachine(
 typedef struct SsdManager SsdManager;
 struct SsdManager
 {
-	// external dependents
+	// brokers relating external components
 	ServiceSwitchDriverWrapper	serviceSwitchDriver;
 	SsdDriverWrapper			ssdDriver;
 	StateEventMessanger			stateEventMessanger;
