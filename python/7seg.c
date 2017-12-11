@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "./externals.c"
+
 // TODO: delete
 #define Bool	uint8_t
 #define TRUE	((Bool)1)
@@ -60,11 +62,11 @@ struct SsdDriverWrapper
 
 //-------------------------------------------------------------------
 void SsdDriverWrapper_initialize(
-	SsdDriverWrapper* self
-	// TODO
+	SsdDriverWrapper* self,
+	void (*display)(uint8_t left, uint8_t right)
 	)
 {
-	// TODO
+	self->display = display;
 }
 
 //-------------------------------------------------------------------
@@ -74,7 +76,22 @@ void SsdDriverWrapper_display(
 	uint8_t right
 	)
 {
-	// TODO
+	self->display(left, right);
+}
+
+//-------------------------------------------------------------------
+void SsdDriverWrapperDefaultMothod_display(
+	uint8_t left,
+	uint8_t right
+	)
+{
+	T_SEVENSEGDRIVER_PATTERN_LIST patternList;
+
+	patternList.pattern = SEVENSEGDRIVER_DISPLAY_CODE(left, right);
+	patternList.period = 1000;	// TODO: Is this value right? Does it work?
+	patternList.nextList = 0;	// TODO: use NULL
+	
+	SevenSegmentLEDDriver_setNormalList(&patternList, 1);
 }
 
 
@@ -131,6 +148,7 @@ Bool EventMessanger_subscribe(
 
 	self->callbacks[self->numofSubscribers] = callback;
 	self->contexts[self->numofSubscribers] = context;
+	self->numofSubscribers += 1;
 	return TRUE;
 }
 
@@ -155,14 +173,31 @@ void StateEventMessanger_initialize(
 }
 
 //-------------------------------------------------------------------
+static void __StateEventMessanger_lock(
+	StateEventMessanger* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __StateEventMessanger_unlock(
+	StateEventMessanger* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
 void StateEventMessanger_notifyUpdated(
 	StateEventMessanger* self,
 	int state
 	)
 {
-	// TODO: lock & unlock
+	__StateEventMessanger_lock(self);
 	self->state = state;
 	EventMessanger_notifyUpdated(&self->eventMessanger);
+	__StateEventMessanger_unlock(self);
 }
 
 //-------------------------------------------------------------------
@@ -172,8 +207,13 @@ Bool StateEventMessanger_subscribe(
 	void* context
 	)
 {
-	// TODO: lock & unlock
-	return EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	Bool result;
+
+	__StateEventMessanger_lock(self);
+	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	__StateEventMessanger_unlock(self);
+
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -181,8 +221,13 @@ int StateEventMessanger_getState(
 	StateEventMessanger* self
 	)
 {
-	// TODO: lock & unlock
-	return self->state;
+	int result;
+
+	__StateEventMessanger_lock(self);
+	result = self->state;
+	__StateEventMessanger_unlock(self);
+
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -191,6 +236,7 @@ int StateEventMessanger_getState(
 typedef struct ConfigEventMessangerSignature ConfigEventMessangerSignature;
 struct ConfigEventMessangerSignature
 {
+	Bool	valid;
 	uint8_t signatureHigh;
 	uint8_t signatureLow;
 	uint8_t yearHigh;
@@ -205,6 +251,7 @@ struct ConfigEventMessangerSignature
 //-------------------------------------------------------------------
 void ConfigEventMessangerSignature_set(
 	ConfigEventMessangerSignature* self,
+	Bool	valid,
 	uint8_t signatureHigh,
 	uint8_t signatureLow,
 	uint8_t yearHigh,
@@ -216,6 +263,7 @@ void ConfigEventMessangerSignature_set(
 	uint8_t sec
 	)
 {
+	self->valid			= valid;
 	self->signatureHigh = signatureHigh;
 	self->signatureLow  = signatureLow;
 	self->yearHigh      = yearHigh;
@@ -231,12 +279,23 @@ void ConfigEventMessangerSignature_set(
 // ConfigEventMessanger
 //-------------------------------------------------------------------
 typedef struct ConfigEventMessanger ConfigEventMessanger;
+typedef enum e_SsdDisplayCommandForRestore e_SsdDisplayCommandForRestore;
+
+enum e_SsdDisplayCommandForRestore
+{
+	e_SsdDisplayCommandForRestore_displayInitializing,
+	e_SsdDisplayCommandForRestore_displayProcessing,
+	e_SsdDisplayCommandForRestore_displaySignature,
+	e_SsdDisplayCommandForRestore_displaySignatureWithDot,
+	e_SsdDisplayCommandForRestore_displaySignatureWithDotAndDate,
+};
 
 struct ConfigEventMessanger
 {
 	EventMessanger eventMessanger;
 	Bool hasSignature;
 	ConfigEventMessangerSignature signature;
+	e_SsdDisplayCommandForRestore displayCommandForRestore;
 };
 
 //-------------------------------------------------------------------
@@ -246,18 +305,47 @@ void ConfigEventMessanger_initialize(
 {
 	EventMessanger_initialize(&self->eventMessanger);
 	self->hasSignature = FALSE;
+	self->displayCommandForRestore = e_SsdDisplayCommandForRestore_displayInitializing;
 }
 
 //-------------------------------------------------------------------
-void ConfigEventMessanger_notifyUpdated(
+static void __ConfigEventMessanger_lock(
+	ConfigEventMessanger* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __ConfigEventMessanger_unlock(
+	ConfigEventMessanger* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+void ConfigEventMessanger_notifySignatureUpdated(
 	ConfigEventMessanger* self,
 	ConfigEventMessangerSignature* signature
 	)
 {
-	// TODO: lock & unlock
+	__ConfigEventMessanger_lock(self);
 	self->signature = *signature;
-	self->hasSignature = TRUE;
 	EventMessanger_notifyUpdated(&self->eventMessanger);
+	__ConfigEventMessanger_unlock(self);
+}
+
+//-------------------------------------------------------------------
+void ConfigEventMessanger_notifySsdDisplayCommandForRestoreUpdated(
+	ConfigEventMessanger* self,
+	e_SsdDisplayCommandForRestore displayCommandForRestore
+	)
+{
+	__ConfigEventMessanger_lock(self);
+	self->displayCommandForRestore = displayCommandForRestore;
+	EventMessanger_notifyUpdated(&self->eventMessanger);
+	__ConfigEventMessanger_unlock(self);
 }
 
 //-------------------------------------------------------------------
@@ -267,17 +355,13 @@ Bool ConfigEventMessanger_subscribe(
 	void* context
 	)
 {
-	// TODO: lock & unlock
-	return EventMessanger_subscribe(&self->eventMessanger, callback, context);
-}
+	Bool result;
 
-//-------------------------------------------------------------------
-Bool ConfigEventMessanger_hasSignature(
-	ConfigEventMessanger* self
-	)
-{
-	// TODO: lock & unlock
-	return self->hasSignature;
+	__ConfigEventMessanger_lock(self);
+	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	__ConfigEventMessanger_unlock(self);
+
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -286,20 +370,35 @@ void ConfigEventMessanger_getSignature(
 	ConfigEventMessangerSignature* signature	// out
 	)
 {
-	// TODO: lock & unlock
+	__ConfigEventMessanger_lock(self);
 	*signature = self->signature;
+	__ConfigEventMessanger_unlock(self);
+}
+
+//-------------------------------------------------------------------
+e_SsdDisplayCommandForRestore ConfigEventMessanger_getDisplayCommandForRestore(
+	ConfigEventMessanger* self
+	)
+{
+	e_SsdDisplayCommandForRestore result;
+
+	__ConfigEventMessanger_lock(self);
+	result = self->displayCommandForRestore;
+	__ConfigEventMessanger_unlock(self);
+
+	return result;
 }
 
 //-------------------------------------------------------------------
 // DataLoggingEventMessangerDotPattern
 //-------------------------------------------------------------------
-typedef enum eDataLoggingEventMessangerDotPattern eDataLoggingEventMessangerDotPattern;
+typedef enum e_DataLoggingEventMessangerDotPattern e_DataLoggingEventMessangerDotPattern;
 
-enum eDataLoggingEventMessangerDotPattern
+enum e_DataLoggingEventMessangerDotPattern
 {
-	eDataLoggingEventMessangerDotPattern_on,
-	eDataLoggingEventMessangerDotPattern_off,
-	eDataLoggingEventMessangerDotPattern_blink,
+	e_DataLoggingEventMessangerDotPattern_on,
+	e_DataLoggingEventMessangerDotPattern_off,
+	e_DataLoggingEventMessangerDotPattern_blink,
 };
 
 
@@ -311,8 +410,8 @@ typedef struct DataLoggingEventMessanger DataLoggingEventMessanger;
 struct DataLoggingEventMessanger
 {
 	EventMessanger eventMessanger;
-	eDataLoggingEventMessangerDotPattern left;
-	eDataLoggingEventMessangerDotPattern right;
+	e_DataLoggingEventMessangerDotPattern left;
+	e_DataLoggingEventMessangerDotPattern right;
 };
 
 //-------------------------------------------------------------------
@@ -321,21 +420,38 @@ void DataLoggingEventMessanger_initialize(
 	)
 {
 	EventMessanger_initialize(&self->eventMessanger);
-	self->left = eDataLoggingEventMessangerDotPattern_off;
-	self->right = eDataLoggingEventMessangerDotPattern_off;
+	self->left = e_DataLoggingEventMessangerDotPattern_off;
+	self->right = e_DataLoggingEventMessangerDotPattern_off;
+}
+
+//-------------------------------------------------------------------
+static void __DataLoggingEventMessanger_lock(
+	DataLoggingEventMessanger* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __DataLoggingEventMessanger_unlock(
+	DataLoggingEventMessanger* self
+	)
+{
+	// TODO
 }
 
 //-------------------------------------------------------------------
 void DataLoggingEventMessanger_notifyUpdated(
 	DataLoggingEventMessanger* self,
-	eDataLoggingEventMessangerDotPattern left,
-	eDataLoggingEventMessangerDotPattern right
+	e_DataLoggingEventMessangerDotPattern left,
+	e_DataLoggingEventMessangerDotPattern right
 	)
 {
-	// TODO: lock & unlock
+	__DataLoggingEventMessanger_lock(self);
 	self->left = left;
 	self->right = right;
 	EventMessanger_notifyUpdated(&self->eventMessanger);
+	__DataLoggingEventMessanger_unlock(self);
 }
 
 //-------------------------------------------------------------------
@@ -345,20 +461,26 @@ Bool DataLoggingEventMessanger_subscribe(
 	void* context
 	)
 {
-	// TODO: lock & unlock
-	return EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	Bool result;
+
+	__DataLoggingEventMessanger_lock(self);
+	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	__DataLoggingEventMessanger_unlock(self);
+
+	return result;
 }
 
 //-------------------------------------------------------------------
 void DataLoggingEventMessanger_getDotPattern(
 	DataLoggingEventMessanger* self,
-	eDataLoggingEventMessangerDotPattern* left,	// out
-	eDataLoggingEventMessangerDotPattern* right	// out
+	e_DataLoggingEventMessangerDotPattern* left,	// out
+	e_DataLoggingEventMessangerDotPattern* right	// out
 	)
 {
-	// TODO: lock & unlock
+	__DataLoggingEventMessanger_lock(self);
 	*left = self->left;
 	*right = self->right;
+	__DataLoggingEventMessanger_unlock(self);
 }
 
 //-------------------------------------------------------------------
@@ -381,12 +503,29 @@ void FaultLogWatcher_initialize(
 }
 
 //-------------------------------------------------------------------
+static void __FaultLogWatcher_lock(
+	FaultLogWatcher* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __FaultLogWatcher_unlock(
+	FaultLogWatcher* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
 static void __FaultLogWatcher_notifyUpdated(
 	FaultLogWatcher* self
 	)
 {
-	// TODO: lock & unlock
+	__FaultLogWatcher_lock(self);
 	EventMessanger_notifyUpdated(&self->eventMessanger);
+	__FaultLogWatcher_unlock(self);
 }
 
 //-------------------------------------------------------------------
@@ -414,8 +553,13 @@ Bool FaultLogWatcher_subscribe(
 	void* context
 	)
 {
-	// TODO: lock & unlock
-	return EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	Bool result;
+
+	__FaultLogWatcher_lock(self);
+	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	__FaultLogWatcher_unlock(self);
+
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -430,27 +574,37 @@ void FaultLogWatcher_readFaultLog(
 //-------------------------------------------------------------------
 // SsdPicture
 //-------------------------------------------------------------------
-#define SsdPicture uint8_t
+typedef uint8_t SsdPicture;
 
 //-------------------------------------------------------------------
 // SsdFrame
 //-------------------------------------------------------------------
+typedef struct SsdFrameMethods SsdFrameMethods;
 typedef struct SsdFrame SsdFrame;
+
+typedef SsdPicture	(*SsdFrameMethod_getPicture)(SsdFrame* self);
+typedef uint32_t	(*SsdFrameMethod_getDurationTime)(SsdFrame* self);
+
+struct SsdFrameMethods
+{
+	SsdFrameMethod_getPicture		getPicture;
+	SsdFrameMethod_getDurationTime	getDurationTime;
+};
+
 struct SsdFrame
 {
-	int dummy; // TODO
+	SsdFrameMethods* methods;
 
 	SsdFrame* next;	// for SsdAnimation
 };
 
 //-------------------------------------------------------------------
-void SsdFrame_initialize(
+void SsdFrame_initializeMethods(
 	SsdFrame* self,
-	SsdPicture picture,
-	uint32_t durationTime
+	SsdFrameMethods* methods
 	)
 {
-	// TODO
+	self->methods = methods;
 }
 
 //-------------------------------------------------------------------
@@ -458,8 +612,7 @@ SsdPicture SsdFrame_getPicture(
 	SsdFrame* self
 	)
 {
-	// TODO
-	return 0;
+	return self->methods->getPicture(self);
 }
 
 //-------------------------------------------------------------------
@@ -467,8 +620,121 @@ uint32_t SsdFrame_getDurationTime(
 	SsdFrame* self
 	)
 {
-	// TODO
-	return 0;
+	return self->methods->getDurationTime(self);
+}
+
+//-------------------------------------------------------------------
+// SsdStaticFrame
+//-------------------------------------------------------------------
+typedef struct SsdStaticFrame SsdStaticFrame;
+struct SsdStaticFrame
+{
+	SsdFrameMethods* methods;
+
+	SsdPicture picture;
+	uint32_t durationTime;
+};
+
+//-------------------------------------------------------------------
+SsdPicture SsdStaticFrame_getPicture(
+	SsdFrame* base
+	)
+{
+	SsdStaticFrame* self = (SsdStaticFrame*)base;
+
+	return self->picture;
+}
+
+//-------------------------------------------------------------------
+uint32_t SsdStaticFrame_getDurationTime(
+	SsdFrame* base
+	)
+{
+	SsdStaticFrame* self = (SsdStaticFrame*)base;
+
+	return self->durationTime;
+}
+
+//-------------------------------------------------------------------
+SsdFrameMethods G_SsdStaticFrameMethods =
+{
+	SsdStaticFrame_getPicture,
+	SsdStaticFrame_getDurationTime,
+};
+
+//-------------------------------------------------------------------
+void SsdStaticFrame_initialize(
+	SsdStaticFrame* self,
+	SsdPicture picture,
+	uint32_t durationTime
+	)
+{
+	SsdFrame_initializeMethods(
+		(SsdFrame*)self,
+		&G_SsdStaticFrameMethods
+		);
+
+	self->picture = picture;
+	self->durationTime = durationTime;
+}
+
+//-------------------------------------------------------------------
+// SsdDynamicFrame
+//-------------------------------------------------------------------
+typedef struct SsdDynamicFrame SsdDynamicFrame;
+
+struct SsdDynamicFrame
+{
+	SsdFrameMethods* methods;
+
+	SsdPicture (*getPicture)(void* context);
+	void* context;
+	uint32_t durationTime;
+};
+
+//-------------------------------------------------------------------
+SsdPicture SsdDynamicFrame_getPicture(
+	SsdFrame* base
+	)
+{
+	SsdDynamicFrame* self = (SsdDynamicFrame*)base;
+
+	return self->getPicture(self->context);
+}
+
+//-------------------------------------------------------------------
+uint32_t SsdDynamicFrame_getDurationTime(
+	SsdFrame* base
+	)
+{
+	SsdDynamicFrame* self = (SsdDynamicFrame*)base;
+
+	return self->durationTime;
+}
+
+//-------------------------------------------------------------------
+SsdFrameMethods G_SsdDynamicFrameMethods =
+{
+	SsdDynamicFrame_getPicture,
+	SsdDynamicFrame_getDurationTime,
+};
+
+//-------------------------------------------------------------------
+void SsdDynamicFrame_initialize(
+	SsdDynamicFrame* self,
+	SsdPicture (*getPicture)(void* context),
+	void* context,
+	uint32_t durationTime
+	)
+{
+	SsdFrame_initializeMethods(
+		(SsdFrame*)self,
+		&G_SsdDynamicFrameMethods
+		);
+
+	self->getPicture = getPicture;
+	self->context = context;
+	self->durationTime = durationTime;
 }
 
 //-------------------------------------------------------------------
@@ -645,7 +911,7 @@ typedef struct SsdTestMode SsdTestMode;
 struct SsdTestMode
 {
 	SsdModeState base;
-	SsdFrame frames[cSsdTestMode_numofFrames];
+	SsdStaticFrame frames[cSsdTestMode_numofFrames];
 	SsdAnimation animation;
 	SsdDriverWrapper* ssdDriver;
 };
@@ -674,10 +940,7 @@ void SsdTestMode_onTick(
 	Bool isFinished = FALSE;
 
 	picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
-	if(isFinished)
-	{
-		SsdAnimation_restartAnimation(&self->animation);
-	}
+	// TODO: do something when isFinished
 	SsdDriverWrapper_display(self->ssdDriver, picture, picture);
 }
 
@@ -695,24 +958,6 @@ void SsdTestMode_initialize(
 	SsdDriverWrapper* ssdDriver
 	)
 {
-	struct
-	{
-		SsdPicture picture;
-		uint32_t durationTime;
-	}
-	initialValues[] =
-	{
-		// TODO: change proper value for SsdDriver
-		{ 'F', 250},
-		{ 'A', 250},
-		{ 'B', 250},
-		{ 'C', 250},
-		{ 'D', 250},
-		{ 'E', 250},
-		{ 'G', 250},
-		{ '.', 250},
-		{ ' ', 250},
-	};
 	int index;
 
 	SsdModeState_initializeMethods(
@@ -720,15 +965,19 @@ void SsdTestMode_initialize(
 		&G_SsdTestModeMethods
 		);
 
+	SsdStaticFrame_initialize(&self->frames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
+	SsdStaticFrame_initialize(&self->frames[1], SEVENSEGDRIVER_BITPTN_TOP,			250);
+	SsdStaticFrame_initialize(&self->frames[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,		250);
+	SsdStaticFrame_initialize(&self->frames[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,	250);
+	SsdStaticFrame_initialize(&self->frames[4], SEVENSEGDRIVER_BITPTN_BOTTOM,		250);
+	SsdStaticFrame_initialize(&self->frames[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,		250);
+	SsdStaticFrame_initialize(&self->frames[6], SEVENSEGDRIVER_BITPTN_DASH,			250);
+	SsdStaticFrame_initialize(&self->frames[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
+	SsdStaticFrame_initialize(&self->frames[8], SEVENSEGDRIVER_BITPTN_BLANK,		250);
 	SsdAnimation_initialize(&self->animation);
 	for(index = 0; index < cSsdTestMode_numofFrames; index++)
 	{
-		SsdFrame_initialize(
-			&self->frames[index],
-			initialValues[index].picture,
-			initialValues[index].durationTime
-			);
-		SsdAnimation_addFrame(&self->animation, &self->frames[index]);
+		SsdAnimation_addFrame(&self->animation, (SsdFrame*)&self->frames[index]);
 	}
 
 	self->ssdDriver = ssdDriver;
@@ -739,15 +988,71 @@ void SsdTestMode_initialize(
 //-------------------------------------------------------------------
 typedef struct SsdNormalMode SsdNormalMode;
 
-#define cSsdNormalMode_numofFrames	9
+#define cSsdNormalMode_numofFramesForDebug			1	// TODO: convert array to one variable
+#define cSsdNormalMode_numofFramesForProgram		2
+#define cSsdNormalMode_numofFramesForDotOn			1	// TODO: convert array to one variable
+#define cSsdNormalMode_numofFramesForDotOff			1	// TODO: convert array to one variable
+#define cSsdNormalMode_numofFramesForDotBlink		2
 
 struct SsdNormalMode
 {
 	SsdModeState base;
-	SsdFrame frames[cSsdNormalMode_numofFrames];
-	SsdAnimation animation;
+
+	// ForRun
+	SsdDynamicFrame leftFrameForRun;
+	SsdDynamicFrame rightFrameForRun;
+	SsdAnimation leftAnimationForRun;
+	SsdAnimation rightAnimationForRun;
+
+	// ForDebug
+	SsdStaticFrame leftFramesForDebug[cSsdNormalMode_numofFramesForDebug];
+	SsdStaticFrame rightFramesForDebug[cSsdNormalMode_numofFramesForDebug];
+	SsdAnimation leftAnimationForDebug;
+	SsdAnimation rightAnimationForDebug;
+
+	// ForProgram
+	SsdStaticFrame leftFramesForProgram[cSsdNormalMode_numofFramesForProgram];
+	SsdStaticFrame rightFramesForProgram[cSsdNormalMode_numofFramesForProgram];
+	SsdAnimation leftAnimationForProgram;
+	SsdAnimation rightAnimationForProgram;
+
+	// ForDot
+	SsdStaticFrame dotOnFrames[cSsdNormalMode_numofFramesForDotOn];
+	SsdStaticFrame dotOffFrames[cSsdNormalMode_numofFramesForDotOff];
+	SsdStaticFrame leftDotBlinkFrames[cSsdNormalMode_numofFramesForDotBlink];
+	SsdStaticFrame rightDotBlinkFrames[cSsdNormalMode_numofFramesForDotBlink];
+	SsdAnimation dotOnAnimation;;
+	SsdAnimation dotOffAnimation;;
+	SsdAnimation leftDotBlinkAnimation;;
+	SsdAnimation rightDotBlinkAnimation;;
+
+	// For onTick
+	SsdAnimation* leftAnimation;
+	SsdAnimation* rightAnimation;
+	SsdAnimation* leftDotAnimation;
+	SsdAnimation* rightDotAnimation;
+
 	SsdDriverWrapper* ssdDriver;
+	StateEventMessanger* stateEventMessanger;
+	ConfigEventMessanger* configEventMessanger;
+	DataLoggingEventMessanger* dataLoggingEventMessanger;
 };
+
+//-------------------------------------------------------------------
+static void __SsdNormalMode_lock(
+	SsdNormalMode* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __SsdNormalMode_unlock(
+	SsdNormalMode* self
+	)
+{
+	// TODO
+}
 
 //-------------------------------------------------------------------
 void SsdNormalMode_onEntry(
@@ -757,9 +1062,9 @@ void SsdNormalMode_onEntry(
 	SsdNormalMode* self = (SsdNormalMode*)base;
 	SsdPicture picture;
 
-	SsdAnimation_restartAnimation(&self->animation);
-	picture = SsdAnimation_getFirstPicture(&self->animation);
-	SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	//SsdAnimation_restartAnimation(&self->animation);
+	//picture = SsdAnimation_getFirstPicture(&self->animation);
+	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
 }
 
 //-------------------------------------------------------------------
@@ -769,15 +1074,20 @@ void SsdNormalMode_onTick(
 	)
 {
 	SsdNormalMode* self = (SsdNormalMode*)base;
-	SsdPicture picture;
-	Bool isFinished = FALSE;
+	SsdPicture left;
+	SsdPicture right;
+	SsdPicture leftDot;
+	SsdPicture rightDot;
+	Bool dummy;
 
-	picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
-	if(isFinished)
-	{
-		SsdAnimation_restartAnimation(&self->animation);
-	}
-	SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	__SsdNormalMode_lock(self);
+	left		= SsdAnimation_getPicture(self->leftAnimation, elapsedTimeMillisec, &dummy);
+	right		= SsdAnimation_getPicture(self->rightAnimation, elapsedTimeMillisec, &dummy);
+	leftDot		= SsdAnimation_getPicture(self->leftDotAnimation, elapsedTimeMillisec, &dummy);
+	rightDot	= SsdAnimation_getPicture(self->rightDotAnimation, elapsedTimeMillisec, &dummy);
+	__SsdNormalMode_unlock(self);
+
+	SsdDriverWrapper_display(self->ssdDriver, left | leftDot, right | rightDot);
 }
 
 //-------------------------------------------------------------------
@@ -789,46 +1099,586 @@ SsdModeStateMethods G_SsdNormalModeMethods =
 };
 
 //-------------------------------------------------------------------
-void SsdNormalMode_initialize(
+// TODO: replace
+typedef enum e_State e_State;
+enum e_State
+{
+	e_State_Run,
+	e_State_Debug,
+};
+
+//-------------------------------------------------------------------
+static void __SsdNormalMode_changeAnimation(
 	SsdNormalMode* self,
-	SsdDriverWrapper* ssdDriver
+	SsdAnimation* leftAnimation,
+	SsdAnimation* rightAnimation
 	)
 {
-	struct
+	__SsdNormalMode_lock(self);
+	self->leftAnimation = leftAnimation;
+	self->rightAnimation = rightAnimation;
+	SsdAnimation_restartAnimation(self->leftAnimation);
+	SsdAnimation_restartAnimation(self->rightAnimation);
+	__SsdNormalMode_unlock(self);
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_changeDotAnimation(
+	SsdNormalMode* self,
+	SsdAnimation* leftDotAnimation,
+	SsdAnimation* rightDotAnimation
+	)
+{
+	__SsdNormalMode_lock(self);
+	self->leftDotAnimation = leftDotAnimation;
+	self->rightDotAnimation = rightDotAnimation;
+	SsdAnimation_restartAnimation(self->leftDotAnimation);
+	SsdAnimation_restartAnimation(self->rightDotAnimation);
+	__SsdNormalMode_unlock(self);
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_notifyStateManagerUpdated(
+	void* context
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)context;
+	int state;
+
+	state = StateEventMessanger_getState(self->stateEventMessanger);
+	switch(state)
 	{
-		SsdPicture picture;
-		uint32_t durationTime;
+		case e_State_Run:
+			__SsdNormalMode_changeAnimation(
+				self,
+				&self->leftAnimationForRun,
+				&self->rightAnimationForRun
+				);
+			break;
+		case e_State_Debug:
+			__SsdNormalMode_changeAnimation(
+				self,
+				&self->leftAnimationForDebug,
+				&self->rightAnimationForDebug
+				);
+			break;
+		default:
+			__SsdNormalMode_changeAnimation(
+				self,
+				&self->leftAnimationForProgram,
+				&self->rightAnimationForProgram
+				);
+			break;
 	}
-	initialValues[] =
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_notifyConfigManagerUpdated(
+	void* context
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)context;
+
+	// do nothing
+}
+
+//-------------------------------------------------------------------
+SsdAnimation* __SsdNormalMode_chooseAnimationByDotPattern(
+	SsdNormalMode* self,
+	e_DataLoggingEventMessangerDotPattern dotPattern,
+	SsdAnimation* onAnimation,
+	SsdAnimation* offAnimation,
+	SsdAnimation* blinkAnimation
+	)
+{
+	SsdAnimation* result;
+	(void)self;
+
+	switch(dotPattern)
 	{
-		// TODO: change proper value for SsdDriver
-		{ 'F', 250},
-		{ 'A', 250},
-		{ 'B', 250},
-		{ 'C', 250},
-		{ 'D', 250},
-		{ 'E', 250},
-		{ 'G', 250},
-		{ '.', 250},
-		{ ' ', 250},
-	};
+		case e_DataLoggingEventMessangerDotPattern_on:
+			result = onAnimation;
+			break;
+		case e_DataLoggingEventMessangerDotPattern_blink:
+			result = blinkAnimation;
+			break;
+		case e_DataLoggingEventMessangerDotPattern_off:
+			// fall through
+		default:
+			result = offAnimation;
+			break;
+	}
+	return result;
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_notifyDataLoggingManagerUpdated(
+	void* context
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)context;
+	e_DataLoggingEventMessangerDotPattern leftDotPattern;
+	e_DataLoggingEventMessangerDotPattern rightDotPattern;
+	SsdAnimation* leftDotAnimation;
+	SsdAnimation* rightDotAnimation;
+
+	DataLoggingEventMessanger_getDotPattern(
+		self->dataLoggingEventMessanger,
+		&leftDotPattern,
+		&rightDotPattern
+		);
+
+	leftDotAnimation = __SsdNormalMode_chooseAnimationByDotPattern(
+									self,
+									leftDotPattern,
+									&self->dotOnAnimation,
+									&self->dotOffAnimation,
+									&self->leftDotBlinkAnimation
+									);
+	rightDotAnimation = __SsdNormalMode_chooseAnimationByDotPattern(
+									self,
+									rightDotPattern,
+									&self->dotOnAnimation,
+									&self->dotOffAnimation,
+									&self->rightDotBlinkAnimation
+									);
+	__SsdNormalMode_changeDotAnimation(self, leftDotAnimation, rightDotAnimation);
+}
+
+//-------------------------------------------------------------------
+#define m_GetUpper4bit(byte)	(((byte) >> 4) & 0x0F)
+#define m_GetLower4bit(byte)	(((byte) >> 0) & 0x0F)
+
+//-------------------------------------------------------------------
+SsdPicture __SsdNormalMode_getLeftPictureOfSignature(
+	void* context
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)context;
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	if(! signature.valid)
+	{
+		return SEVENSEGDRIVER_BITPTN_DASH;
+	}
+	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetUpper4bit(signature.signatureLow));
+}
+
+//-------------------------------------------------------------------
+SsdPicture __SsdNormalMode_getRightPictureOfSignature(
+	void* context
+	)
+{
+	SsdNormalMode* self = (SsdNormalMode*)context;
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	if(! signature.valid)
+	{
+		return SEVENSEGDRIVER_BITPTN_DASH;
+	}
+	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetLower4bit(signature.signatureLow));
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_initializeAnimationForRun(
+	SsdNormalMode* self
+	)
+{
+	SsdDynamicFrame_initialize(
+		&self->leftFrameForRun,
+		__SsdNormalMode_getLeftPictureOfSignature,
+		(void*)self,
+		0
+		);
+	SsdDynamicFrame_initialize(
+		&self->rightFrameForRun,
+		__SsdNormalMode_getRightPictureOfSignature,
+		(void*)self,
+		0
+		);
+	SsdAnimation_initialize(&self->leftAnimationForRun);
+	SsdAnimation_initialize(&self->rightAnimationForRun);
+	SsdAnimation_addFrame(&self->leftAnimationForRun,		(SsdFrame*)&self->leftFrameForRun);
+	SsdAnimation_addFrame(&self->rightAnimationForRun,		(SsdFrame*)&self->rightFrameForRun);
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_initializeAnimationForDebug(
+	SsdNormalMode* self
+	)
+{
 	int index;
 
+	SsdStaticFrame_initialize(&self->leftFramesForDebug[0],		SEVENSEGDRIVER_BITPTN_DASH,	0);
+	SsdStaticFrame_initialize(&self->rightFramesForDebug[0],	SEVENSEGDRIVER_BITPTN_DASH,	0);
+	SsdAnimation_initialize(&self->leftAnimationForDebug);
+	SsdAnimation_initialize(&self->rightAnimationForDebug);
+	for(index = 0; index < cSsdNormalMode_numofFramesForDebug; index++)
+	{
+		SsdAnimation_addFrame(&self->leftAnimationForDebug,		(SsdFrame*)&self->leftFramesForDebug[index]);
+		SsdAnimation_addFrame(&self->rightAnimationForDebug,	(SsdFrame*)&self->rightFramesForDebug[index]);
+	}
+
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_initializeAnimationForProgram(
+	SsdNormalMode* self
+	)
+{
+	int index;
+
+	SsdStaticFrame_initialize(&self->leftFramesForProgram[0],	SEVENSEGDRIVER_BITPTN_DASH,		500);
+	SsdStaticFrame_initialize(&self->leftFramesForProgram[1],	SEVENSEGDRIVER_BITPTN_BLANK,	500);
+	SsdStaticFrame_initialize(&self->rightFramesForProgram[0],	SEVENSEGDRIVER_BITPTN_DASH,		500);
+	SsdStaticFrame_initialize(&self->rightFramesForProgram[1],	SEVENSEGDRIVER_BITPTN_BLANK,	500);
+	SsdAnimation_initialize(&self->leftAnimationForProgram);
+	SsdAnimation_initialize(&self->rightAnimationForProgram);
+	for(index = 0; index < cSsdNormalMode_numofFramesForProgram; index++)
+	{
+		SsdAnimation_addFrame(&self->leftAnimationForProgram,	(SsdFrame*)&self->leftFramesForProgram[index]);
+		SsdAnimation_addFrame(&self->rightAnimationForProgram,	(SsdFrame*)&self->rightFramesForProgram[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+void __SsdNormalMode_initializeAnimationForDot(
+	SsdNormalMode* self
+	)
+{
+	int index;
+
+	SsdStaticFrame_initialize(&self->dotOnFrames[0],	SEVENSEGDRIVER_BITPTN_DOT,		0);
+	SsdAnimation_initialize(&self->dotOnAnimation);
+	for(index = 0; index < cSsdNormalMode_numofFramesForDotOn; index++)
+	{
+		SsdAnimation_addFrame(&self->dotOnAnimation,	(SsdFrame*)&self->dotOnFrames[index]);
+	}
+
+	SsdStaticFrame_initialize(&self->dotOffFrames[0],	SEVENSEGDRIVER_BITPTN_BLANK,	0);
+	SsdAnimation_initialize(&self->dotOffAnimation);
+	for(index = 0; index < cSsdNormalMode_numofFramesForDotOff; index++)
+	{
+		SsdAnimation_addFrame(&self->dotOffAnimation,	(SsdFrame*)&self->dotOffFrames[index]);
+	}
+
+	SsdStaticFrame_initialize(&self->leftDotBlinkFrames[0],		SEVENSEGDRIVER_BITPTN_DOT,		500);
+	SsdStaticFrame_initialize(&self->leftDotBlinkFrames[1],		SEVENSEGDRIVER_BITPTN_BLANK,	500);
+	SsdStaticFrame_initialize(&self->rightDotBlinkFrames[0],	SEVENSEGDRIVER_BITPTN_DOT,		500);
+	SsdStaticFrame_initialize(&self->rightDotBlinkFrames[1],	SEVENSEGDRIVER_BITPTN_BLANK,	500);
+	SsdAnimation_initialize(&self->leftDotBlinkAnimation);
+	SsdAnimation_initialize(&self->rightDotBlinkAnimation);
+	for(index = 0; index < cSsdNormalMode_numofFramesForDotBlink; index++)
+	{
+		SsdAnimation_addFrame(&self->leftDotBlinkAnimation,		(SsdFrame*)&self->leftDotBlinkFrames[index]);
+		SsdAnimation_addFrame(&self->rightDotBlinkAnimation,	(SsdFrame*)&self->rightDotBlinkFrames[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+Bool __SsdNormalMode_subscribeAllEventMessangers(
+	SsdNormalMode* self,
+	StateEventMessanger* stateEventMessanger,
+	ConfigEventMessanger* configEventMessanger,
+	DataLoggingEventMessanger* dataLoggingEventMessanger
+	)
+{
+	if(! StateEventMessanger_subscribe(
+			stateEventMessanger,
+			__SsdNormalMode_notifyStateManagerUpdated,
+			(void*)self) )
+	{
+		return FALSE;
+	}
+	if(! ConfigEventMessanger_subscribe(
+			configEventMessanger,
+			__SsdNormalMode_notifyConfigManagerUpdated,
+			(void*)self) )
+	{
+		return FALSE;
+	}
+	if(! DataLoggingEventMessanger_subscribe(
+			dataLoggingEventMessanger,
+			__SsdNormalMode_notifyDataLoggingManagerUpdated,
+			(void*)self) )
+	{
+		return FALSE;
+	}
+
+	self->stateEventMessanger = stateEventMessanger;
+	self->configEventMessanger = configEventMessanger;
+	self->dataLoggingEventMessanger = dataLoggingEventMessanger;
+	return TRUE;
+}
+
+//-------------------------------------------------------------------
+Bool SsdNormalMode_initialize(
+	SsdNormalMode* self,
+	SsdDriverWrapper* ssdDriver,
+	StateEventMessanger* stateEventMessanger,
+	ConfigEventMessanger* configEventMessanger,
+	DataLoggingEventMessanger* dataLoggingEventMessanger
+	)
+{
 	SsdModeState_initializeMethods(
 		(SsdModeState*)self,
 		&G_SsdNormalModeMethods
 		);
 
-	SsdAnimation_initialize(&self->animation);
-	for(index = 0; index < cSsdNormalMode_numofFrames; index++)
+	__SsdNormalMode_initializeAnimationForRun(self);
+	__SsdNormalMode_initializeAnimationForDebug(self);
+	__SsdNormalMode_initializeAnimationForProgram(self);
+	__SsdNormalMode_initializeAnimationForDot(self);
+
+	self->ssdDriver = ssdDriver;
+
+	return __SsdNormalMode_subscribeAllEventMessangers(
+				self,
+				stateEventMessanger,
+				configEventMessanger,
+				dataLoggingEventMessanger
+				);
+}
+
+//-------------------------------------------------------------------
+// SsdRestoreMode
+//-------------------------------------------------------------------
+typedef struct SsdRestoreMode SsdRestoreMode;
+
+#define cSsdRestoreMode_numofFramesForInitializing				8
+#define cSsdRestoreMode_numofFramesForProcessing				4
+#define cSsdRestoreMode_numofFramesForSignature					2
+#define cSsdRestoreMode_numofFramesForSignatureWithDot			2
+#define cSsdRestoreMode_numofFramesForSignatureWithDotAndDate	13
+
+struct SsdRestoreMode
+{
+	SsdModeState base;
+
+	// ForInitializing
+	SsdStaticFrame framesForInitializing[cSsdRestoreMode_numofFramesForInitializing];
+	SsdAnimation animationForInitializing;
+
+	// ForProcessing
+	SsdStaticFrame leftFramesForProcessing[cSsdRestoreMode_numofFramesForProcessing];
+	SsdStaticFrame rightFramesForProcessing[cSsdRestoreMode_numofFramesForProcessing];
+	SsdAnimation leftAnimationForProcessing;
+	SsdAnimation rightAnimationForProcessing;
+
+	// ForSignature
+	SsdDynamicFrame leftFramesForSignature[cSsdRestoreMode_numofFramesForSignature];
+	SsdDynamicFrame rightFramesForSignature[cSsdRestoreMode_numofFramesForSignature];
+	SsdAnimation leftAnimationForSignature;
+	SsdAnimation rightAnimationForSignature;
+
+	// ForSignatureWithDot
+	SsdDynamicFrame framesForSignatureWithDot[cSsdRestoreMode_numofFramesForSignatureWithDot];
+	SsdAnimation animationForSignatureWithDot;
+
+	// ForSignatureWithDotAndDate
+	SsdDynamicFrame framesForSignatureWithDotAndDate[cSsdRestoreMode_numofFramesForSignatureWithDotAndDate];
+	SsdAnimation animationForSignatureWithDotAndDate;
+
+	SsdDriverWrapper* ssdDriver;
+};
+
+//-------------------------------------------------------------------
+void SsdRestoreMode_onEntry(
+	SsdModeState* base
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)base;
+	SsdPicture picture;
+
+	// TODO
+	//SsdAnimation_restartAnimation(&self->animation);
+	//picture = SsdAnimation_getFirstPicture(&self->animation);
+	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+}
+
+//-------------------------------------------------------------------
+void SsdRestoreMode_onTick(
+	SsdModeState* base,
+	uint32_t elapsedTimeMillisec
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)base;
+	SsdPicture picture;
+	Bool isFinished = FALSE;
+
+	// TODO
+	//picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
+	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+}
+
+//-------------------------------------------------------------------
+SsdModeStateMethods G_SsdRestoreModeMethods =
+{
+	SsdRestoreMode_onEntry,
+	SsdModeState_doNothing,
+	SsdRestoreMode_onTick,
+};
+
+//-------------------------------------------------------------------
+SsdPicture __SsdRestoreMode_getLeftPictureOfSignature(
+	SsdRestoreMode* self,
+	uint8_t signature1Byte
+	)
+{
+	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetUpper4bit(signature1Byte));
+}
+
+//-------------------------------------------------------------------
+SsdPicture __SsdRestoreMode_getRightPictureOfSignature(
+	SsdRestoreMode* self,
+	uint8_t signature1Byte
+	)
+{
+	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetLower4bit(signature1Byte));
+}
+
+//-------------------------------------------------------------------
+SsdPicture __SsdRestoreMode_get1stLeftPictureOfSignature(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	return __SsdRestoreMode_getLeftPictureOfSignature(self, signature.signatureHigh);
+}
+
+//-------------------------------------------------------------------
+SsdPicture __SsdRestoreMode_get1stRightPictureOfSignature(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	return __SsdRestoreMode_getRightPictureOfSignature(self, signature.signatureHigh);
+}
+
+//-------------------------------------------------------------------
+SsdPicture __SsdRestoreMode_get2ndLeftPictureOfSignature(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	return __SsdRestoreMode_getLeftPictureOfSignature(self, signature.signatureLow);
+}
+
+//-------------------------------------------------------------------
+SsdPicture __SsdRestoreMode_get2ndRightPictureOfSignature(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	return __SsdRestoreMode_getRightPictureOfSignature(self, signature.signatureLow);
+}
+
+//-------------------------------------------------------------------
+void SsdRestoreMode_initialize(
+	SsdRestoreMode* self,
+	SsdDriverWrapper* ssdDriver
+	)
+{
+	int index;
+
+	SsdModeState_initializeMethods(
+		(SsdModeState*)self,
+		&G_SsdRestoreModeMethods
+		);
+
+	// ForInitializing
+	SsdStaticFrame_initialize(&self->framesForInitializing[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[1], SEVENSEGDRIVER_BITPTN_TOP,			250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,		250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,		250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[4], SEVENSEGDRIVER_BITPTN_BOTTOM,		250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,		250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[6], SEVENSEGDRIVER_BITPTN_DASH,			250);
+	SsdStaticFrame_initialize(&self->framesForInitializing[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
+	SsdAnimation_initialize(&self->animationForInitializing);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForInitializing; index++)
 	{
-		SsdFrame_initialize(
-			&self->frames[index],
-			initialValues[index].picture,
-			initialValues[index].durationTime
-			);
-		SsdAnimation_addFrame(&self->animation, &self->frames[index]);
+		SsdAnimation_addFrame(&self->animationForInitializing, (SsdFrame*)&self->framesForInitializing[index]);
 	}
+
+	// ForProcessing
+	SsdStaticFrame_initialize(&self->leftFramesForProcessing[0], SEVENSEGDRIVER_BITPTN_UPCIRCLE,	250);
+	SsdStaticFrame_initialize(&self->leftFramesForProcessing[1], SEVENSEGDRIVER_BITPTN_BLANK,		250);
+	SsdStaticFrame_initialize(&self->leftFramesForProcessing[2], SEVENSEGDRIVER_BITPTN_BLANK,		250);
+	SsdStaticFrame_initialize(&self->leftFramesForProcessing[3], SEVENSEGDRIVER_BITPTN_DOWNCIRCLE,	250);
+	SsdStaticFrame_initialize(&self->rightFramesForProcessing[0], SEVENSEGDRIVER_BITPTN_BLANK,		250);
+	SsdStaticFrame_initialize(&self->rightFramesForProcessing[1], SEVENSEGDRIVER_BITPTN_UPCIRCLE,	250);
+	SsdStaticFrame_initialize(&self->rightFramesForProcessing[2], SEVENSEGDRIVER_BITPTN_DOWNCIRCLE,	250);
+	SsdStaticFrame_initialize(&self->rightFramesForProcessing[3], SEVENSEGDRIVER_BITPTN_BLANK,		250);
+	SsdAnimation_initialize(&self->leftAnimationForProcessing);
+	SsdAnimation_initialize(&self->rightAnimationForProcessing);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForProcessing; index++)
+	{
+		SsdAnimation_addFrame(
+			&self->leftAnimationForProcessing,
+			(SsdFrame*)&self->leftFramesForProcessing[index]
+			);
+		SsdAnimation_addFrame(
+			&self->rightAnimationForProcessing,
+			(SsdFrame*)&self->rightFramesForProcessing[index]
+			);
+	}
+
+	// ForSignature
+	SsdDynamicFrame_initialize(
+		&self->leftFramesForSignature[0],
+		__SsdRestoreMode_get1stLeftPictureOfSignature,
+		(void*)self,
+		500
+		);
+	SsdDynamicFrame_initialize(
+		&self->leftFramesForSignature[1],
+		__SsdRestoreMode_get2ndLeftPictureOfSignature,
+		(void*)self,
+		500
+		);
+	SsdDynamicFrame_initialize(
+		&self->rightFramesForSignature[0],
+		__SsdRestoreMode_get1stRightPictureOfSignature,
+		(void*)self,
+		500
+		);
+	SsdDynamicFrame_initialize(
+		&self->rightFramesForSignature[1],
+		__SsdRestoreMode_get2ndRightPictureOfSignature,
+		(void*)self,
+		500
+		);
+	SsdAnimation_initialize(&self->leftAnimationForSignature);
+	SsdAnimation_initialize(&self->rightAnimationForSignature);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForSignature; index++)
+	{
+		SsdAnimation_addFrame(
+			&self->leftAnimationForSignature,
+			(SsdFrame*)&self->leftFramesForSignature[index]
+			);
+		SsdAnimation_addFrame(
+			&self->rightAnimationForSignature,
+			(SsdFrame*)&self->rightFramesForSignature[index]
+			);
+	}
+
+
+	// TODO: from HERE!!
 
 	self->ssdDriver = ssdDriver;
 }
