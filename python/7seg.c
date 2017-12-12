@@ -9,6 +9,24 @@
 #define FALSE	((Bool)0)
 
 //-------------------------------------------------------------------
+// SsdUtil
+//-------------------------------------------------------------------
+uint8_t SsdUtil_getUpper4bit(
+	uint8_t byte
+	)
+{
+	return (byte >> 4) & 0x0F;
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_getLower4bit(
+	uint8_t byte
+	)
+{
+	return (byte >> 0) & 0x0F;
+}
+
+//-------------------------------------------------------------------
 // ServiceSwitchDriverWrapper
 //-------------------------------------------------------------------
 typedef struct ServiceSwitchDriverWrapper ServiceSwitchDriverWrapper;
@@ -89,7 +107,7 @@ void SsdDriverWrapperDefaultMothod_display(
 
 	patternList.pattern = SEVENSEGDRIVER_DISPLAY_CODE(left, right);
 	patternList.period = 1000;	// TODO: Is this value right? Does it work?
-	patternList.nextList = 0;	// TODO: use NULL
+	patternList.nextList = 0;
 	
 	SevenSegmentLEDDriver_setNormalList(&patternList, 1);
 }
@@ -143,7 +161,7 @@ Bool EventMessanger_subscribe(
 {
 	if(self->numofSubscribers == cMaxNumofSubscribers)
 	{
-		return FALSE;
+		return FALSE;	// TODO: guarantee not to come by test
 	}
 
 	self->callbacks[self->numofSubscribers] = callback;
@@ -293,7 +311,6 @@ enum e_SsdDisplayCommandForRestore
 struct ConfigEventMessanger
 {
 	EventMessanger eventMessanger;
-	Bool hasSignature;
 	ConfigEventMessangerSignature signature;
 	e_SsdDisplayCommandForRestore displayCommandForRestore;
 };
@@ -304,7 +321,6 @@ void ConfigEventMessanger_initialize(
 	)
 {
 	EventMessanger_initialize(&self->eventMessanger);
-	self->hasSignature = FALSE;
 	self->displayCommandForRestore = e_SsdDisplayCommandForRestore_displayInitializing;
 }
 
@@ -576,6 +592,66 @@ void FaultLogWatcher_readFaultLog(
 //-------------------------------------------------------------------
 typedef uint8_t SsdPicture;
 
+static const SsdPicture SsdPicture_hexTable[16] =
+{
+	SEVENSEGDRIVER_BITPTN_0,
+	SEVENSEGDRIVER_BITPTN_1,
+	SEVENSEGDRIVER_BITPTN_2,
+	SEVENSEGDRIVER_BITPTN_3,
+	SEVENSEGDRIVER_BITPTN_4,
+	SEVENSEGDRIVER_BITPTN_5,
+	SEVENSEGDRIVER_BITPTN_6,
+	SEVENSEGDRIVER_BITPTN_7,
+	SEVENSEGDRIVER_BITPTN_8,
+	SEVENSEGDRIVER_BITPTN_9,
+	SEVENSEGDRIVER_BITPTN_A,
+	SEVENSEGDRIVER_BITPTN_B,
+	SEVENSEGDRIVER_BITPTN_C,
+	SEVENSEGDRIVER_BITPTN_D,
+	SEVENSEGDRIVER_BITPTN_E,
+	SEVENSEGDRIVER_BITPTN_F,
+};
+
+//-------------------------------------------------------------------
+SsdPicture SsdPicture_convert4bitValueToHexPicture(
+	uint8_t value
+	)
+{
+	return SsdPicture_hexTable[ value & 0x0F ];
+}
+
+//-------------------------------------------------------------------
+SsdPicture SsdPicture_getOnesDigitPictureAsDecimal(
+	uint8_t value
+	)
+{
+	return SsdPicture_hexTable[ value % 10 ];
+}
+
+//-------------------------------------------------------------------
+SsdPicture SsdPicture_getTensDigitPictureAsDecimal(
+	uint8_t value
+	)
+{
+	return SsdPicture_hexTable[ (value / 10) % 10 ];
+}
+
+//-------------------------------------------------------------------
+SsdPicture SsdPicture_getUpper4bitPictureAsHex(
+	uint8_t value
+	)
+{
+	return SsdPicture_convert4bitValueToHexPicture(SsdUtil_getUpper4bit(value));
+}
+
+//-------------------------------------------------------------------
+SsdPicture SsdPicture_getLower4bitPictureAsHex(
+	uint8_t value
+	)
+{
+	return SsdPicture_convert4bitValueToHexPicture(SsdUtil_getLower4bit(value));
+}
+
 //-------------------------------------------------------------------
 // SsdFrame
 //-------------------------------------------------------------------
@@ -780,12 +856,21 @@ void SsdAnimation_addFrame(
 }
 
 //-------------------------------------------------------------------
+static void __SsdAnimation_changeCurrentFrame(
+	SsdAnimation* self,
+	SsdFrame* newFrame
+	)
+{
+	self->currentFrame = newFrame;
+	self->elapsedTimeMillisecOfCurrentFrame = 0;
+}
+
+//-------------------------------------------------------------------
 void SsdAnimation_restartAnimation(
 	SsdAnimation* self
 	)
 {
-	self->currentFrame = self->headFrame;
-	self->elapsedTimeMillisecOfCurrentFrame = 0;
+	__SsdAnimation_changeCurrentFrame(self, self->headFrame);
 }
 
 //-------------------------------------------------------------------
@@ -803,20 +888,23 @@ static SsdPicture __SsdAnimation_getNextPicture(
 	)
 {
 	SsdFrame* nextFrame;
-	SsdPicture lastFramePicture;
+	SsdPicture result;
 
 	nextFrame = self->currentFrame->next;
 	if(nextFrame != NULL)
 	{
-		self->currentFrame = nextFrame;
-		self->elapsedTimeMillisecOfCurrentFrame = 0;
-		return SsdFrame_getPicture(nextFrame);
+		result = SsdFrame_getPicture(nextFrame);
+		__SsdAnimation_changeCurrentFrame(self, nextFrame);
+		*isFinished = FALSE;
+	}
+	else
+	{
+		result = SsdFrame_getPicture(self->currentFrame);
+		SsdAnimation_restartAnimation(self);
+		*isFinished = TRUE;
 	}
 
-	*isFinished = TRUE;
-	lastFramePicture = SsdFrame_getPicture(self->currentFrame);
-	SsdAnimation_restartAnimation(self);
-	return lastFramePicture;
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -826,11 +914,11 @@ SsdPicture SsdAnimation_getPicture(
 	Bool* isFinished	// out
 	)
 {
-	*isFinished = FALSE;
 	self->elapsedTimeMillisecOfCurrentFrame += elapsedTimeMillisec;
 
-	if(SsdFrame_getDurationTime(self->currentFrame) > self->elapsedTimeMillisecOfCurrentFrame)
+	if(self->elapsedTimeMillisecOfCurrentFrame < SsdFrame_getDurationTime(self->currentFrame))
 	{
+		*isFinished = FALSE;
 		return SsdFrame_getPicture(self->currentFrame);
 	}
 
@@ -1026,7 +1114,7 @@ struct SsdNormalMode
 	SsdAnimation leftDotBlinkAnimation;;
 	SsdAnimation rightDotBlinkAnimation;;
 
-	// For onTick
+	// onTick
 	SsdAnimation* leftAnimation;
 	SsdAnimation* rightAnimation;
 	SsdAnimation* leftDotAnimation;
@@ -1060,11 +1148,21 @@ void SsdNormalMode_onEntry(
 	)
 {
 	SsdNormalMode* self = (SsdNormalMode*)base;
-	SsdPicture picture;
+	SsdPicture left;
+	SsdPicture right;
+	SsdPicture leftDot;
+	SsdPicture rightDot;
 
-	//SsdAnimation_restartAnimation(&self->animation);
-	//picture = SsdAnimation_getFirstPicture(&self->animation);
-	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	SsdAnimation_restartAnimation(self->leftAnimation);
+	SsdAnimation_restartAnimation(self->rightAnimation);
+	SsdAnimation_restartAnimation(self->leftDotAnimation);
+	SsdAnimation_restartAnimation(self->rightDotAnimation);
+	left		= SsdAnimation_getFirstPicture(self->leftAnimation);
+	right		= SsdAnimation_getFirstPicture(self->rightAnimation);
+	leftDot		= SsdAnimation_getFirstPicture(self->leftDotAnimation);
+	rightDot	= SsdAnimation_getFirstPicture(self->rightDotAnimation);
+
+	SsdDriverWrapper_display(self->ssdDriver, left | leftDot, right | rightDot);
 }
 
 //-------------------------------------------------------------------
@@ -1105,6 +1203,7 @@ enum e_State
 {
 	e_State_Run,
 	e_State_Debug,
+	e_State_Program,
 };
 
 //-------------------------------------------------------------------
@@ -1138,38 +1237,45 @@ void __SsdNormalMode_changeDotAnimation(
 }
 
 //-------------------------------------------------------------------
+void __SsdNormalMode_chooseAnimationByState(
+	SsdNormalMode* self,
+	int state,
+	SsdAnimation** left,	// out
+	SsdAnimation** right	// out
+	)
+{
+	switch(state)
+	{
+		case e_State_Run:
+			*left	= &self->leftAnimationForRun;
+			*right	= &self->rightAnimationForRun;
+			break;
+		case e_State_Debug:
+			*left	= &self->leftAnimationForDebug;
+			*right	= &self->rightAnimationForDebug;
+			break;
+		case e_State_Program:
+			// fall through
+		default:
+			*left	= &self->leftAnimationForProgram;
+			*right	= &self->rightAnimationForProgram;
+			break;
+	}
+}
+
+//-------------------------------------------------------------------
 void __SsdNormalMode_notifyStateManagerUpdated(
 	void* context
 	)
 {
 	SsdNormalMode* self = (SsdNormalMode*)context;
 	int state;
+	SsdAnimation* leftAnim;
+	SsdAnimation* rightAnim;
 
 	state = StateEventMessanger_getState(self->stateEventMessanger);
-	switch(state)
-	{
-		case e_State_Run:
-			__SsdNormalMode_changeAnimation(
-				self,
-				&self->leftAnimationForRun,
-				&self->rightAnimationForRun
-				);
-			break;
-		case e_State_Debug:
-			__SsdNormalMode_changeAnimation(
-				self,
-				&self->leftAnimationForDebug,
-				&self->rightAnimationForDebug
-				);
-			break;
-		default:
-			__SsdNormalMode_changeAnimation(
-				self,
-				&self->leftAnimationForProgram,
-				&self->rightAnimationForProgram
-				);
-			break;
-	}
+	__SsdNormalMode_chooseAnimationByState(self, state, &leftAnim, &rightAnim);
+	__SsdNormalMode_changeAnimation(self, leftAnim, rightAnim);
 }
 
 //-------------------------------------------------------------------
@@ -1183,8 +1289,7 @@ void __SsdNormalMode_notifyConfigManagerUpdated(
 }
 
 //-------------------------------------------------------------------
-SsdAnimation* __SsdNormalMode_chooseAnimationByDotPattern(
-	SsdNormalMode* self,
+SsdAnimation* __SsdNormalMode_chooseDotAnimationByDotPattern(
 	e_DataLoggingEventMessangerDotPattern dotPattern,
 	SsdAnimation* onAnimation,
 	SsdAnimation* offAnimation,
@@ -1192,7 +1297,6 @@ SsdAnimation* __SsdNormalMode_chooseAnimationByDotPattern(
 	)
 {
 	SsdAnimation* result;
-	(void)self;
 
 	switch(dotPattern)
 	{
@@ -1228,15 +1332,13 @@ void __SsdNormalMode_notifyDataLoggingManagerUpdated(
 		&rightDotPattern
 		);
 
-	leftDotAnimation = __SsdNormalMode_chooseAnimationByDotPattern(
-									self,
+	leftDotAnimation = __SsdNormalMode_chooseDotAnimationByDotPattern(
 									leftDotPattern,
 									&self->dotOnAnimation,
 									&self->dotOffAnimation,
 									&self->leftDotBlinkAnimation
 									);
-	rightDotAnimation = __SsdNormalMode_chooseAnimationByDotPattern(
-									self,
+	rightDotAnimation = __SsdNormalMode_chooseDotAnimationByDotPattern(
 									rightDotPattern,
 									&self->dotOnAnimation,
 									&self->dotOffAnimation,
@@ -1246,23 +1348,24 @@ void __SsdNormalMode_notifyDataLoggingManagerUpdated(
 }
 
 //-------------------------------------------------------------------
-#define m_GetUpper4bit(byte)	(((byte) >> 4) & 0x0F)
-#define m_GetLower4bit(byte)	(((byte) >> 0) & 0x0F)
-
-//-------------------------------------------------------------------
 SsdPicture __SsdNormalMode_getLeftPictureOfSignature(
 	void* context
 	)
 {
 	SsdNormalMode* self = (SsdNormalMode*)context;
 	ConfigEventMessangerSignature signature;
+	SsdPicture result;
 
 	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
-	if(! signature.valid)
+	if(signature.valid)
 	{
-		return SEVENSEGDRIVER_BITPTN_DASH;
+		result = SsdPicture_getUpper4bitPictureAsHex(signature.signatureLow);
 	}
-	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetUpper4bit(signature.signatureLow));
+	else
+	{
+		result = SEVENSEGDRIVER_BITPTN_DASH;
+	}
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -1272,13 +1375,18 @@ SsdPicture __SsdNormalMode_getRightPictureOfSignature(
 {
 	SsdNormalMode* self = (SsdNormalMode*)context;
 	ConfigEventMessangerSignature signature;
+	SsdPicture result;
 
 	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
-	if(! signature.valid)
+	if(signature.valid)
 	{
-		return SEVENSEGDRIVER_BITPTN_DASH;
+		result = SsdPicture_getLower4bitPictureAsHex(signature.signatureLow);
 	}
-	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetLower4bit(signature.signatureLow));
+	else
+	{
+		result = SEVENSEGDRIVER_BITPTN_DASH;
+	}
+	return result;
 }
 
 //-------------------------------------------------------------------
@@ -1286,22 +1394,17 @@ void __SsdNormalMode_initializeAnimationForRun(
 	SsdNormalMode* self
 	)
 {
-	SsdDynamicFrame_initialize(
-		&self->leftFrameForRun,
-		__SsdNormalMode_getLeftPictureOfSignature,
-		(void*)self,
-		0
-		);
-	SsdDynamicFrame_initialize(
-		&self->rightFrameForRun,
-		__SsdNormalMode_getRightPictureOfSignature,
-		(void*)self,
-		0
-		);
-	SsdAnimation_initialize(&self->leftAnimationForRun);
-	SsdAnimation_initialize(&self->rightAnimationForRun);
-	SsdAnimation_addFrame(&self->leftAnimationForRun,		(SsdFrame*)&self->leftFrameForRun);
-	SsdAnimation_addFrame(&self->rightAnimationForRun,		(SsdFrame*)&self->rightFrameForRun);
+	SsdDynamicFrame* lFrame = &self->leftFrameForRun;
+	SsdDynamicFrame* rFrame = &self->rightFrameForRun;
+	SsdAnimation* lAnim = &self->leftAnimationForRun;
+	SsdAnimation* rAnim = &self->rightAnimationForRun;
+
+	SsdDynamicFrame_initialize(lFrame, __SsdNormalMode_getLeftPictureOfSignature, (void*)self, 0);
+	SsdDynamicFrame_initialize(rFrame, __SsdNormalMode_getRightPictureOfSignature, (void*)self, 0);
+	SsdAnimation_initialize(lAnim);
+	SsdAnimation_initialize(rAnim);
+	SsdAnimation_addFrame(lAnim,		(SsdFrame*)lFrame);
+	SsdAnimation_addFrame(rAnim,		(SsdFrame*)rFrame);
 }
 
 //-------------------------------------------------------------------
@@ -1432,6 +1535,9 @@ Bool SsdNormalMode_initialize(
 	__SsdNormalMode_initializeAnimationForProgram(self);
 	__SsdNormalMode_initializeAnimationForDot(self);
 
+	__SsdNormalMode_changeAnimation(self, &self->leftAnimationForProgram, &self->rightAnimationForProgram);
+	__SsdNormalMode_changeDotAnimation(self, &self->dotOffAnimation, &self->dotOffAnimation);
+
 	self->ssdDriver = ssdDriver;
 
 	return __SsdNormalMode_subscribeAllEventMessangers(
@@ -1458,8 +1564,10 @@ struct SsdRestoreMode
 	SsdModeState base;
 
 	// ForInitializing
-	SsdStaticFrame framesForInitializing[cSsdRestoreMode_numofFramesForInitializing];
-	SsdAnimation animationForInitializing;
+	SsdStaticFrame leftFramesForInitializing[cSsdRestoreMode_numofFramesForInitializing];
+	SsdStaticFrame rightFramesForInitializing[cSsdRestoreMode_numofFramesForInitializing];
+	SsdAnimation leftAnimationForInitializing;
+	SsdAnimation rightAnimationForInitializing;
 
 	// ForProcessing
 	SsdStaticFrame leftFramesForProcessing[cSsdRestoreMode_numofFramesForProcessing];
@@ -1474,15 +1582,40 @@ struct SsdRestoreMode
 	SsdAnimation rightAnimationForSignature;
 
 	// ForSignatureWithDot
-	SsdDynamicFrame framesForSignatureWithDot[cSsdRestoreMode_numofFramesForSignatureWithDot];
-	SsdAnimation animationForSignatureWithDot;
+	SsdDynamicFrame leftFramesForSignatureWithDot[cSsdRestoreMode_numofFramesForSignatureWithDot];
+	SsdDynamicFrame rightFramesForSignatureWithDot[cSsdRestoreMode_numofFramesForSignatureWithDot];
+	SsdAnimation leftAnimationForSignatureWithDot;
+	SsdAnimation rightAnimationForSignatureWithDot;
 
 	// ForSignatureWithDotAndDate
-	SsdDynamicFrame framesForSignatureWithDotAndDate[cSsdRestoreMode_numofFramesForSignatureWithDotAndDate];
-	SsdAnimation animationForSignatureWithDotAndDate;
+	SsdDynamicFrame leftFramesForSignatureWithDotAndDate[cSsdRestoreMode_numofFramesForSignatureWithDotAndDate];
+	SsdDynamicFrame rightFramesForSignatureWithDotAndDate[cSsdRestoreMode_numofFramesForSignatureWithDotAndDate];
+	SsdAnimation leftAnimationForSignatureWithDotAndDate;
+	SsdAnimation rightAnimationForSignatureWithDotAndDate;
+
+	// onTick
+	SsdAnimation* leftAnimation;
+	SsdAnimation* rightAnimation;
 
 	SsdDriverWrapper* ssdDriver;
+	ConfigEventMessanger* configEventMessanger;
 };
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_lock(
+	SsdRestoreMode* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_unlock(
+	SsdRestoreMode* self
+	)
+{
+	// TODO
+}
 
 //-------------------------------------------------------------------
 void SsdRestoreMode_onEntry(
@@ -1490,12 +1623,14 @@ void SsdRestoreMode_onEntry(
 	)
 {
 	SsdRestoreMode* self = (SsdRestoreMode*)base;
-	SsdPicture picture;
+	SsdPicture leftPicture;
+	SsdPicture rightPicture;
 
-	// TODO
-	//SsdAnimation_restartAnimation(&self->animation);
-	//picture = SsdAnimation_getFirstPicture(&self->animation);
-	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	SsdAnimation_restartAnimation(self->leftAnimation);
+	SsdAnimation_restartAnimation(self->rightAnimation);
+	leftPicture = SsdAnimation_getFirstPicture(self->leftAnimation);
+	rightPicture = SsdAnimation_getFirstPicture(self->rightAnimation);
+	SsdDriverWrapper_display(self->ssdDriver, leftPicture, rightPicture);
 }
 
 //-------------------------------------------------------------------
@@ -1505,12 +1640,16 @@ void SsdRestoreMode_onTick(
 	)
 {
 	SsdRestoreMode* self = (SsdRestoreMode*)base;
-	SsdPicture picture;
-	Bool isFinished = FALSE;
+	SsdPicture leftPicture;
+	SsdPicture rightPicture;
+	Bool dummy;
 
-	// TODO
-	//picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
-	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	__SsdRestoreMode_lock(self);
+	leftPicture = SsdAnimation_getPicture(self->leftAnimation, elapsedTimeMillisec, &dummy);
+	rightPicture = SsdAnimation_getPicture(self->rightAnimation, elapsedTimeMillisec, &dummy);
+	__SsdRestoreMode_unlock(self);
+
+	SsdDriverWrapper_display(self->ssdDriver, leftPicture, rightPicture);
 }
 
 //-------------------------------------------------------------------
@@ -1522,165 +1661,635 @@ SsdModeStateMethods G_SsdRestoreModeMethods =
 };
 
 //-------------------------------------------------------------------
-SsdPicture __SsdRestoreMode_getLeftPictureOfSignature(
+static void __SsdRestoreMode_changeAnimation(
 	SsdRestoreMode* self,
-	uint8_t signature1Byte
+	SsdAnimation* leftAnimation,
+	SsdAnimation* rightAnimation
 	)
 {
-	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetUpper4bit(signature1Byte));
+	__SsdRestoreMode_lock(self);
+	self->leftAnimation = leftAnimation;
+	self->rightAnimation = rightAnimation;
+	SsdAnimation_restartAnimation(self->leftAnimation);
+	SsdAnimation_restartAnimation(self->rightAnimation);
+	__SsdRestoreMode_unlock(self);
 }
 
 //-------------------------------------------------------------------
-SsdPicture __SsdRestoreMode_getRightPictureOfSignature(
+static void __SsdRestoreMode_chooseAnimationByDisplayCommand(
 	SsdRestoreMode* self,
-	uint8_t signature1Byte
+	e_SsdDisplayCommandForRestore displayCommand,
+	SsdAnimation** left,	// out
+	SsdAnimation** right	// out
 	)
 {
-	return SEVENSEGDRIVER_DISPLAY_HEX(m_GetLower4bit(signature1Byte));
+	switch(displayCommand)
+	{
+		case e_SsdDisplayCommandForRestore_displayProcessing:
+			*left	= &self->leftAnimationForProcessing;
+			*right	= &self->rightAnimationForProcessing;
+			break;
+		case e_SsdDisplayCommandForRestore_displaySignature:
+			*left	= &self->leftAnimationForSignature;
+			*right	= &self->rightAnimationForSignature;
+			break;
+		case e_SsdDisplayCommandForRestore_displaySignatureWithDot:
+			*left	= &self->leftAnimationForSignatureWithDot;
+			*right	= &self->rightAnimationForSignatureWithDot;
+			break;
+		case e_SsdDisplayCommandForRestore_displaySignatureWithDotAndDate:
+			*left	= &self->leftAnimationForSignatureWithDotAndDate;
+			*right	= &self->rightAnimationForSignatureWithDotAndDate;
+			break;
+		case e_SsdDisplayCommandForRestore_displayInitializing:
+			// fall through
+		default:
+			*left	= &self->leftAnimationForInitializing;
+			*right	= &self->rightAnimationForInitializing;
+			break;
+	}
 }
 
 //-------------------------------------------------------------------
-SsdPicture __SsdRestoreMode_get1stLeftPictureOfSignature(
+void __SsdRestoreMode_notifyConfigManagerUpdated(
 	void* context
 	)
 {
 	SsdRestoreMode* self = (SsdRestoreMode*)context;
-	ConfigEventMessangerSignature signature;
+	e_SsdDisplayCommandForRestore displayCommand;
+	SsdAnimation* leftAnim;
+	SsdAnimation* rightAnim;
 
-	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
-	return __SsdRestoreMode_getLeftPictureOfSignature(self, signature.signatureHigh);
+	displayCommand = ConfigEventMessanger_getDisplayCommandForRestore(self->configEventMessanger);
+	__SsdRestoreMode_chooseAnimationByDisplayCommand(self, displayCommand, &leftAnim, &rightAnim);
+	__SsdRestoreMode_changeAnimation(self, leftAnim, rightAnim);
 }
 
 //-------------------------------------------------------------------
-SsdPicture __SsdRestoreMode_get1stRightPictureOfSignature(
+static SsdPicture __SsdRestoreMode_getPictureOfSignature(
+	SsdRestoreMode* self,
+	Bool isSignatureHigh,	// if false, this means signatureLow
+	Bool isLeft				// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+	uint8_t signature1Byte;
+	SsdPicture result;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	if(isSignatureHigh)
+	{
+		signature1Byte = signature.signatureHigh;
+	}
+	else
+	{
+		signature1Byte = signature.signatureLow;
+	}
+
+	if(isLeft)
+	{
+		result = SsdPicture_getUpper4bitPictureAsHex(signature1Byte);
+	}
+	else
+	{
+		result = SsdPicture_getLower4bitPictureAsHex(signature1Byte);
+	}
+	return result;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftOrRightPictureAsDecimal(
+	uint8_t value,
+	Bool isLeft			// if false, this means right
+	)
+{
+	SsdPicture result;
+
+	if(isLeft)
+	{
+		result = SsdPicture_getTensDigitPictureAsDecimal(value);
+	}
+	else
+	{
+		result = SsdPicture_getOnesDigitPictureAsDecimal(value);
+	}
+	return result;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getPictureOfYear(
+	SsdRestoreMode* self,
+	Bool isYearHigh,	// if false, this means yearLow
+	Bool isLeft			// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+	uint8_t year1Byte;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+	if(isYearHigh)
+	{
+		year1Byte = signature.yearHigh;
+	}
+	else
+	{
+		year1Byte = signature.yearLow;
+	}
+
+	return __SsdRestoreMode_getLeftOrRightPictureAsDecimal(year1Byte, isLeft);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getPictureOfMonth(
+	SsdRestoreMode* self,
+	Bool isLeft			// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+
+	return __SsdRestoreMode_getLeftOrRightPictureAsDecimal(signature.month, isLeft);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getPictureOfDay(
+	SsdRestoreMode* self,
+	Bool isLeft			// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+
+	return __SsdRestoreMode_getLeftOrRightPictureAsDecimal(signature.day, isLeft);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getPictureOfHour(
+	SsdRestoreMode* self,
+	Bool isLeft			// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+
+	return __SsdRestoreMode_getLeftOrRightPictureAsDecimal(signature.hour, isLeft);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getPictureOfMin(
+	SsdRestoreMode* self,
+	Bool isLeft			// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+
+	return __SsdRestoreMode_getLeftOrRightPictureAsDecimal(signature.min, isLeft);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getPictureOfSec(
+	SsdRestoreMode* self,
+	Bool isLeft			// if false, this means right
+	)
+{
+	ConfigEventMessangerSignature signature;
+
+	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
+
+	return __SsdRestoreMode_getLeftOrRightPictureAsDecimal(signature.sec, isLeft);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfSignatureHigh(
 	void* context
 	)
 {
 	SsdRestoreMode* self = (SsdRestoreMode*)context;
-	ConfigEventMessangerSignature signature;
 
-	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
-	return __SsdRestoreMode_getRightPictureOfSignature(self, signature.signatureHigh);
+	return __SsdRestoreMode_getPictureOfSignature(self, TRUE, TRUE);
 }
 
 //-------------------------------------------------------------------
-SsdPicture __SsdRestoreMode_get2ndLeftPictureOfSignature(
+static SsdPicture __SsdRestoreMode_getRightPictureOfSignatureHigh(
 	void* context
 	)
 {
 	SsdRestoreMode* self = (SsdRestoreMode*)context;
-	ConfigEventMessangerSignature signature;
 
-	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
-	return __SsdRestoreMode_getLeftPictureOfSignature(self, signature.signatureLow);
+	return __SsdRestoreMode_getPictureOfSignature(self, TRUE, FALSE);
 }
 
 //-------------------------------------------------------------------
-SsdPicture __SsdRestoreMode_get2ndRightPictureOfSignature(
+static SsdPicture __SsdRestoreMode_getLeftPictureOfSignatureLow(
 	void* context
 	)
 {
 	SsdRestoreMode* self = (SsdRestoreMode*)context;
-	ConfigEventMessangerSignature signature;
 
-	ConfigEventMessanger_getSignature(self->configEventMessanger, &signature);
-	return __SsdRestoreMode_getRightPictureOfSignature(self, signature.signatureLow);
+	return __SsdRestoreMode_getPictureOfSignature(self, FALSE, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfSignatureLow(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfSignature(self, FALSE, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfSignatureHighWithDot(
+	void* context
+	)
+{
+	return __SsdRestoreMode_getLeftPictureOfSignatureHigh(context)
+			| SEVENSEGDRIVER_BITPTN_DOT;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfSignatureHighWithDot(
+	void* context
+	)
+{
+	return __SsdRestoreMode_getRightPictureOfSignatureHigh(context)
+			| SEVENSEGDRIVER_BITPTN_DOT;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfSignatureLowWithDot(
+	void* context
+	)
+{
+	return __SsdRestoreMode_getLeftPictureOfSignatureLow(context)
+			| SEVENSEGDRIVER_BITPTN_DOT;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfSignatureLowWithDot(
+	void* context
+	)
+{
+	return __SsdRestoreMode_getRightPictureOfSignatureLow(context)
+			| SEVENSEGDRIVER_BITPTN_DOT;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfYearHigh(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfYear(self, TRUE, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfYearHigh(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfYear(self, TRUE, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfYearLow(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfYear(self, FALSE, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfYearLow(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfYear(self, FALSE, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfMonth(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfMonth(self, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfMonth(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfMonth(self, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfDay(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfDay(self, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfDay(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfDay(self, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfHour(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfHour(self, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfHour(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfHour(self, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfMin(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfMin(self, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfMin(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfMin(self, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getLeftPictureOfSec(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfSec(self, TRUE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getRightPictureOfSec(
+	void* context
+	)
+{
+	SsdRestoreMode* self = (SsdRestoreMode*)context;
+
+	return __SsdRestoreMode_getPictureOfSec(self, FALSE);
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getDashPicture(
+	void* context
+	)
+{
+	(void)context;
+	return SEVENSEGDRIVER_BITPTN_DASH;
+}
+
+//-------------------------------------------------------------------
+static SsdPicture __SsdRestoreMode_getBlankPicture(
+	void* context
+	)
+{
+	(void)context;
+	return SEVENSEGDRIVER_BITPTN_BLANK;
+}
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_initializeAnimationForInitializing(
+	SsdRestoreMode* self
+	)
+{
+	SsdStaticFrame* lFrames = self->leftFramesForInitializing;
+	SsdStaticFrame* rFrames = self->rightFramesForInitializing;
+	SsdAnimation* lAnim = &self->leftAnimationForInitializing;
+	SsdAnimation* rAnim = &self->rightAnimationForInitializing;
+	int index;
+
+	SsdStaticFrame_initialize(&lFrames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,	250);
+	SsdStaticFrame_initialize(&lFrames[1], SEVENSEGDRIVER_BITPTN_TOP,		250);
+	SsdStaticFrame_initialize(&lFrames[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,	250);
+	SsdStaticFrame_initialize(&lFrames[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,	250);
+	SsdStaticFrame_initialize(&lFrames[4], SEVENSEGDRIVER_BITPTN_BOTTOM,	250);
+	SsdStaticFrame_initialize(&lFrames[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,	250);
+	SsdStaticFrame_initialize(&lFrames[6], SEVENSEGDRIVER_BITPTN_DASH,		250);
+	SsdStaticFrame_initialize(&lFrames[7], SEVENSEGDRIVER_BITPTN_DOT,		250);
+
+	SsdStaticFrame_initialize(&rFrames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,	250);
+	SsdStaticFrame_initialize(&rFrames[1], SEVENSEGDRIVER_BITPTN_TOP,		250);
+	SsdStaticFrame_initialize(&rFrames[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,	250);
+	SsdStaticFrame_initialize(&rFrames[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,	250);
+	SsdStaticFrame_initialize(&rFrames[4], SEVENSEGDRIVER_BITPTN_BOTTOM,	250);
+	SsdStaticFrame_initialize(&rFrames[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,	250);
+	SsdStaticFrame_initialize(&rFrames[6], SEVENSEGDRIVER_BITPTN_DASH,		250);
+	SsdStaticFrame_initialize(&rFrames[7], SEVENSEGDRIVER_BITPTN_DOT,		250);
+
+	SsdAnimation_initialize(lAnim);
+	SsdAnimation_initialize(rAnim);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForInitializing; index++)
+	{
+		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
+		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_initializeAnimationForProcessing(
+	SsdRestoreMode* self
+	)
+{
+	SsdStaticFrame* lFrames = self->leftFramesForProcessing;
+	SsdStaticFrame* rFrames = self->rightFramesForProcessing;
+	SsdAnimation* lAnim = &self->leftAnimationForProcessing;
+	SsdAnimation* rAnim = &self->rightAnimationForProcessing;
+	int index;
+
+	SsdStaticFrame_initialize(&lFrames[0], SEVENSEGDRIVER_BITPTN_UPCIRCLE,		250);
+	SsdStaticFrame_initialize(&lFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,			250);
+	SsdStaticFrame_initialize(&lFrames[2], SEVENSEGDRIVER_BITPTN_BLANK,			250);
+	SsdStaticFrame_initialize(&lFrames[3], SEVENSEGDRIVER_BITPTN_DOWNCIRCLE,	250);
+
+	SsdStaticFrame_initialize(&rFrames[0], SEVENSEGDRIVER_BITPTN_BLANK,			250);
+	SsdStaticFrame_initialize(&rFrames[1], SEVENSEGDRIVER_BITPTN_UPCIRCLE,		250);
+	SsdStaticFrame_initialize(&rFrames[2], SEVENSEGDRIVER_BITPTN_DOWNCIRCLE,	250);
+	SsdStaticFrame_initialize(&rFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,			250);
+
+	SsdAnimation_initialize(lAnim);
+	SsdAnimation_initialize(rAnim);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForProcessing; index++)
+	{
+		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
+		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_initializeAnimationForSignature(
+	SsdRestoreMode* self
+	)
+{
+	SsdDynamicFrame* lFrames = self->leftFramesForSignature;
+	SsdDynamicFrame* rFrames = self->rightFramesForSignature;
+	SsdAnimation* lAnim = &self->leftAnimationForSignature;
+	SsdAnimation* rAnim = &self->rightAnimationForSignature;
+	int index;
+
+	SsdDynamicFrame_initialize(&lFrames[0], __SsdRestoreMode_getLeftPictureOfSignatureHigh,		(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[1], __SsdRestoreMode_getLeftPictureOfSignatureLow,		(void*)self, 500);
+
+	SsdDynamicFrame_initialize(&rFrames[0], __SsdRestoreMode_getRightPictureOfSignatureHigh,	(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[1], __SsdRestoreMode_getRightPictureOfSignatureLow,		(void*)self, 500);
+
+	SsdAnimation_initialize(lAnim);
+	SsdAnimation_initialize(rAnim);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForSignature; index++)
+	{
+		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
+		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_initializeAnimationForSignatureWithDot(
+	SsdRestoreMode* self
+	)
+{
+	SsdDynamicFrame* lFrames = self->leftFramesForSignatureWithDot;
+	SsdDynamicFrame* rFrames = self->rightFramesForSignatureWithDot;
+	SsdAnimation* lAnim = &self->leftAnimationForSignatureWithDot;
+	SsdAnimation* rAnim = &self->rightAnimationForSignatureWithDot;
+	int index;
+
+	SsdDynamicFrame_initialize(&lFrames[0], __SsdRestoreMode_getLeftPictureOfSignatureHighWithDot,	(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[1], __SsdRestoreMode_getLeftPictureOfSignatureLowWithDot,	(void*)self, 500);
+
+	SsdDynamicFrame_initialize(&rFrames[0], __SsdRestoreMode_getRightPictureOfSignatureHigh,		(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[1], __SsdRestoreMode_getRightPictureOfSignatureLow,			(void*)self, 500);
+
+	SsdAnimation_initialize(lAnim);
+	SsdAnimation_initialize(rAnim);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForSignatureWithDot; index++)
+	{
+		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
+		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+static void __SsdRestoreMode_initializeAnimationForSignatureWithDotAndDate(
+	SsdRestoreMode* self
+	)
+{
+	SsdDynamicFrame* lFrames = self->leftFramesForSignatureWithDotAndDate;
+	SsdDynamicFrame* rFrames = self->rightFramesForSignatureWithDotAndDate;
+	SsdAnimation* lAnim = &self->leftAnimationForSignatureWithDotAndDate;
+	SsdAnimation* rAnim = &self->rightAnimationForSignatureWithDotAndDate;
+	int index;
+
+	SsdDynamicFrame_initialize(&lFrames[0], __SsdRestoreMode_getLeftPictureOfSignatureHighWithDot,	(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[1], __SsdRestoreMode_getLeftPictureOfSignatureLowWithDot,	(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[2], __SsdRestoreMode_getDashPicture,						(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[3], __SsdRestoreMode_getLeftPictureOfYearHigh,				(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[4], __SsdRestoreMode_getLeftPictureOfYearLow,				(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[5], __SsdRestoreMode_getDashPicture,						(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[6], __SsdRestoreMode_getLeftPictureOfMonth,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[7], __SsdRestoreMode_getLeftPictureOfDay,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[8], __SsdRestoreMode_getDashPicture,						(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[9], __SsdRestoreMode_getLeftPictureOfHour,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[10], __SsdRestoreMode_getLeftPictureOfMin,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[11], __SsdRestoreMode_getLeftPictureOfSec,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&lFrames[12], __SsdRestoreMode_getBlankPicture,						(void*)self, 500);
+
+	SsdDynamicFrame_initialize(&rFrames[0], __SsdRestoreMode_getRightPictureOfSignatureHighWithDot,	(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[1], __SsdRestoreMode_getRightPictureOfSignatureLowWithDot,	(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[2], __SsdRestoreMode_getDashPicture,						(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[3], __SsdRestoreMode_getRightPictureOfYearHigh,				(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[4], __SsdRestoreMode_getRightPictureOfYearLow,				(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[5], __SsdRestoreMode_getDashPicture,						(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[6], __SsdRestoreMode_getRightPictureOfMonth,				(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[7], __SsdRestoreMode_getRightPictureOfDay,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[8], __SsdRestoreMode_getDashPicture,						(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[9], __SsdRestoreMode_getRightPictureOfHour,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[10], __SsdRestoreMode_getRightPictureOfMin,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[11], __SsdRestoreMode_getRightPictureOfSec,					(void*)self, 500);
+	SsdDynamicFrame_initialize(&rFrames[12], __SsdRestoreMode_getBlankPicture,						(void*)self, 500);
+
+	SsdAnimation_initialize(lAnim);
+	SsdAnimation_initialize(rAnim);
+	for(index = 0; index < cSsdRestoreMode_numofFramesForSignatureWithDotAndDate; index++)
+	{
+		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
+		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
+	}
 }
 
 //-------------------------------------------------------------------
 void SsdRestoreMode_initialize(
 	SsdRestoreMode* self,
-	SsdDriverWrapper* ssdDriver
+	SsdDriverWrapper* ssdDriver,
+	ConfigEventMessanger* configEventMessanger
 	)
 {
-	int index;
-
 	SsdModeState_initializeMethods(
 		(SsdModeState*)self,
 		&G_SsdRestoreModeMethods
 		);
 
-	// ForInitializing
-	SsdStaticFrame_initialize(&self->framesForInitializing[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[1], SEVENSEGDRIVER_BITPTN_TOP,			250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,		250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,		250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[4], SEVENSEGDRIVER_BITPTN_BOTTOM,		250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,		250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[6], SEVENSEGDRIVER_BITPTN_DASH,			250);
-	SsdStaticFrame_initialize(&self->framesForInitializing[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
-	SsdAnimation_initialize(&self->animationForInitializing);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForInitializing; index++)
-	{
-		SsdAnimation_addFrame(&self->animationForInitializing, (SsdFrame*)&self->framesForInitializing[index]);
-	}
+	__SsdRestoreMode_initializeAnimationForInitializing(self);
+	__SsdRestoreMode_initializeAnimationForProcessing(self);
+	__SsdRestoreMode_initializeAnimationForSignature(self);
+	__SsdRestoreMode_initializeAnimationForSignatureWithDot(self);
+	__SsdRestoreMode_initializeAnimationForSignatureWithDotAndDate(self);
 
-	// ForProcessing
-	SsdStaticFrame_initialize(&self->leftFramesForProcessing[0], SEVENSEGDRIVER_BITPTN_UPCIRCLE,	250);
-	SsdStaticFrame_initialize(&self->leftFramesForProcessing[1], SEVENSEGDRIVER_BITPTN_BLANK,		250);
-	SsdStaticFrame_initialize(&self->leftFramesForProcessing[2], SEVENSEGDRIVER_BITPTN_BLANK,		250);
-	SsdStaticFrame_initialize(&self->leftFramesForProcessing[3], SEVENSEGDRIVER_BITPTN_DOWNCIRCLE,	250);
-	SsdStaticFrame_initialize(&self->rightFramesForProcessing[0], SEVENSEGDRIVER_BITPTN_BLANK,		250);
-	SsdStaticFrame_initialize(&self->rightFramesForProcessing[1], SEVENSEGDRIVER_BITPTN_UPCIRCLE,	250);
-	SsdStaticFrame_initialize(&self->rightFramesForProcessing[2], SEVENSEGDRIVER_BITPTN_DOWNCIRCLE,	250);
-	SsdStaticFrame_initialize(&self->rightFramesForProcessing[3], SEVENSEGDRIVER_BITPTN_BLANK,		250);
-	SsdAnimation_initialize(&self->leftAnimationForProcessing);
-	SsdAnimation_initialize(&self->rightAnimationForProcessing);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForProcessing; index++)
-	{
-		SsdAnimation_addFrame(
-			&self->leftAnimationForProcessing,
-			(SsdFrame*)&self->leftFramesForProcessing[index]
-			);
-		SsdAnimation_addFrame(
-			&self->rightAnimationForProcessing,
-			(SsdFrame*)&self->rightFramesForProcessing[index]
-			);
-	}
+	__SsdRestoreMode_changeAnimation(self, &self->leftAnimationForInitializing, &self->rightAnimationForInitializing);
 
-	// ForSignature
-	SsdDynamicFrame_initialize(
-		&self->leftFramesForSignature[0],
-		__SsdRestoreMode_get1stLeftPictureOfSignature,
-		(void*)self,
-		500
-		);
-	SsdDynamicFrame_initialize(
-		&self->leftFramesForSignature[1],
-		__SsdRestoreMode_get2ndLeftPictureOfSignature,
-		(void*)self,
-		500
-		);
-	SsdDynamicFrame_initialize(
-		&self->rightFramesForSignature[0],
-		__SsdRestoreMode_get1stRightPictureOfSignature,
-		(void*)self,
-		500
-		);
-	SsdDynamicFrame_initialize(
-		&self->rightFramesForSignature[1],
-		__SsdRestoreMode_get2ndRightPictureOfSignature,
-		(void*)self,
-		500
-		);
-	SsdAnimation_initialize(&self->leftAnimationForSignature);
-	SsdAnimation_initialize(&self->rightAnimationForSignature);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForSignature; index++)
-	{
-		SsdAnimation_addFrame(
-			&self->leftAnimationForSignature,
-			(SsdFrame*)&self->leftFramesForSignature[index]
-			);
-		SsdAnimation_addFrame(
-			&self->rightAnimationForSignature,
-			(SsdFrame*)&self->rightFramesForSignature[index]
-			);
-	}
-
-
-	// TODO: from HERE!!
+	ConfigEventMessanger_subscribe(configEventMessanger, __SsdRestoreMode_notifyConfigManagerUpdated, (void*)self);
 
 	self->ssdDriver = ssdDriver;
+	self->configEventMessanger = configEventMessanger;
 }
 
 //-------------------------------------------------------------------
@@ -1731,11 +2340,7 @@ Bool SsdModeTransition_canTransit(
 	eSsdModeTransitionEvent event
 	)
 {
-	if((self->src == src) && (self->event == event))
-	{
-		return TRUE;
-	}
-	return FALSE;
+	return (self->src == src) && (self->event == event);
 }
 
 //-------------------------------------------------------------------
@@ -1757,6 +2362,22 @@ struct SsdModeStateMachine
 	SsdModeTransition transitions[cSsdModeStateMachine_maxNumofTransitions];
 	int numofTransitions;
 };
+
+//-------------------------------------------------------------------
+static void __SsdModeStateMachine_lock(
+	SsdModeStateMachine* self
+	)
+{
+	// TODO	
+}
+
+//-------------------------------------------------------------------
+static void __SsdModeStateMachine_unlock(
+	SsdModeStateMachine* self
+	)
+{
+	// TODO	
+}
 
 //-------------------------------------------------------------------
 void SsdModeStateMachine_initialize(
@@ -1788,7 +2409,7 @@ Bool SsdModeStateMachine_addTransition(
 
 	if(self->numofTransitions == cSsdModeStateMachine_maxNumofTransitions)
 	{
-		return FALSE;
+		return FALSE;	// TODO: guarantee not to come by test
 	}
 
 	SsdModeTransition_initialize(&self->transitions[self->numofTransitions], srcState, dstState, event);
@@ -1797,19 +2418,11 @@ Bool SsdModeStateMachine_addTransition(
 }
 
 //-------------------------------------------------------------------
-static void __SsdModeStateMachine_lock(
+void SsdModeStateMachine_start(
 	SsdModeStateMachine* self
 	)
 {
-	// TODO	
-}
-
-//-------------------------------------------------------------------
-static void __SsdModeStateMachine_unlock(
-	SsdModeStateMachine* self
-	)
-{
-	// TODO	
+	SsdModeState_onEntry(self->state);
 }
 
 //-------------------------------------------------------------------
@@ -1858,7 +2471,9 @@ void SsdModeStateMachine_onTick(
 	)
 {
 	__SsdModeStateMachine_lock(self);
+
 	SsdModeState_onTick(self->state, elapsedTimeMillisec);
+
 	__SsdModeStateMachine_unlock(self);
 }
 
@@ -1915,6 +2530,7 @@ SsdModeStateMachine* SsdModeStateMachineFactory_createStateMachine(
 	SsdModeStateMachine_addTransition(sm, normalMode, serviceSwitchMode,	eSsdModeTransitionEvent_onServiceSwitchOn);
 	SsdModeStateMachine_addTransition(sm, normalMode, criticalFaultMode,	eSsdModeTransitionEvent_onCriticalFault);
 
+	SsdModeStateMachine_start(sm);	// TODO: call this by SsdManager
 	return sm; // TODO
 }
 
