@@ -11,19 +11,67 @@
 //-------------------------------------------------------------------
 // SsdUtil
 //-------------------------------------------------------------------
-uint8_t SsdUtil_getUpper4bit(
-	uint8_t byte
+uint8_t SsdUtil_get7to4bitFromUint8_t(
+	uint8_t value
 	)
 {
-	return (byte >> 4) & 0x0F;
+	return (value >> 4) & 0x0F;
 }
 
 //-------------------------------------------------------------------
-uint8_t SsdUtil_getLower4bit(
-	uint8_t byte
+uint8_t SsdUtil_get3to0bitFromUint8_t(
+	uint8_t value
 	)
 {
-	return (byte >> 0) & 0x0F;
+	return (value >> 0) & 0x0F;
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_get31to24bitFromUint32_t(
+	uint32_t value
+	)
+{
+	return (value >> 24) & 0xFF;
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_get23to16bitFromUint32_t(
+	uint32_t value
+	)
+{
+	return (value >> 16) & 0xFF;
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_get15to8bitFromUint32_t(
+	uint32_t value
+	)
+{
+	return (value >> 8) & 0xFF;
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_get7to0bitFromUint32_t(
+	uint32_t value
+	)
+{
+	return (value >> 0) & 0xFF;
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_get15to8bitFromUint16_t(
+	uint16_t value
+	)
+{
+	return SsdUtil_get15to8bitFromUint32_t((uint32_t)value);
+}
+
+//-------------------------------------------------------------------
+uint8_t SsdUtil_get7to0bitFromUint16_t(
+	uint16_t value
+	)
+{
+	return SsdUtil_get7to0bitFromUint32_t((uint32_t)value);
 }
 
 //-------------------------------------------------------------------
@@ -118,14 +166,14 @@ void SsdDriverWrapperDefaultMothod_display(
 //-------------------------------------------------------------------
 typedef struct EventMessanger EventMessanger;
 
-#define cMaxNumofSubscribers	4
+#define EVENTMESSANGER_MAXNUMOF_SUBSCRIBERS	4
 
 typedef void (*EventMessangerCallback)(void* context);
 struct EventMessanger
 {
 	int numofSubscribers;
-	EventMessangerCallback callbacks[cMaxNumofSubscribers];
-	void* contexts[cMaxNumofSubscribers];
+	EventMessangerCallback callbacks[EVENTMESSANGER_MAXNUMOF_SUBSCRIBERS];
+	void* contexts[EVENTMESSANGER_MAXNUMOF_SUBSCRIBERS];
 };
 
 //-------------------------------------------------------------------
@@ -159,9 +207,9 @@ Bool EventMessanger_subscribe(
 	void* context
 	)
 {
-	if(self->numofSubscribers == cMaxNumofSubscribers)
+	if(self->numofSubscribers == EVENTMESSANGER_MAXNUMOF_SUBSCRIBERS)
 	{
-		return FALSE;	// TODO: guarantee not to come by test
+		return FALSE;	// TODO: guarantee not to come here by test
 	}
 
 	self->callbacks[self->numofSubscribers] = callback;
@@ -500,94 +548,6 @@ void DataLoggingEventMessanger_getDotPattern(
 }
 
 //-------------------------------------------------------------------
-// FaultLogWatcher
-//-------------------------------------------------------------------
-typedef struct FaultLogWatcher FaultLogWatcher;
-
-struct FaultLogWatcher
-{
-	EventMessanger eventMessanger;
-};
-
-//-------------------------------------------------------------------
-void FaultLogWatcher_initialize(
-	FaultLogWatcher* self
-	)
-{
-	EventMessanger_initialize(&self->eventMessanger);
-	// TODO: register FaultLogWatcher_doCyclicTask() into ApplicationTimer
-}
-
-//-------------------------------------------------------------------
-static void __FaultLogWatcher_lock(
-	FaultLogWatcher* self
-	)
-{
-	// TODO
-}
-
-//-------------------------------------------------------------------
-static void __FaultLogWatcher_unlock(
-	FaultLogWatcher* self
-	)
-{
-	// TODO
-}
-
-//-------------------------------------------------------------------
-static void __FaultLogWatcher_notifyUpdated(
-	FaultLogWatcher* self
-	)
-{
-	__FaultLogWatcher_lock(self);
-	EventMessanger_notifyUpdated(&self->eventMessanger);
-	__FaultLogWatcher_unlock(self);
-}
-
-//-------------------------------------------------------------------
-void FaultLogWatcher_doCyclicTask(
-	FaultLogWatcher* self
-	)
-{
-	// TODO: lock & unlock
-
-	/*
-	 * tentative code
-	if(EventManager_getUpdateCount() != self->previousUpdateCount)
-	{
-		records = EventManager_readOldestRecordsSatisfyingSpecificCondition();
-		self->errorCodes = __translate(records);
-		EventMessanger_notifyUpdated(&self->eventMessanger);
-	}
-	*/
-}
-
-//-------------------------------------------------------------------
-Bool FaultLogWatcher_subscribe(
-	FaultLogWatcher* self,
-	EventMessangerCallback callback,
-	void* context
-	)
-{
-	Bool result;
-
-	__FaultLogWatcher_lock(self);
-	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
-	__FaultLogWatcher_unlock(self);
-
-	return result;
-}
-
-//-------------------------------------------------------------------
-void FaultLogWatcher_readFaultLog(
-	FaultLogWatcher* self
-	// TODO: decide arguments
-	)
-{
-	// TODO: lock & unlock
-}
-
-//-------------------------------------------------------------------
 // SsdPicture
 //-------------------------------------------------------------------
 typedef uint8_t SsdPicture;
@@ -641,7 +601,7 @@ SsdPicture SsdPicture_getUpper4bitPictureAsHex(
 	uint8_t value
 	)
 {
-	return SsdPicture_convert4bitValueToHexPicture(SsdUtil_getUpper4bit(value));
+	return SsdPicture_convert4bitValueToHexPicture(SsdUtil_get7to4bitFromUint8_t(value));
 }
 
 //-------------------------------------------------------------------
@@ -649,38 +609,38 @@ SsdPicture SsdPicture_getLower4bitPictureAsHex(
 	uint8_t value
 	)
 {
-	return SsdPicture_convert4bitValueToHexPicture(SsdUtil_getLower4bit(value));
+	return SsdPicture_convert4bitValueToHexPicture(SsdUtil_get3to0bitFromUint8_t(value));
 }
 
 //-------------------------------------------------------------------
 // SsdFrame
 //-------------------------------------------------------------------
-typedef struct SsdFrameMethods SsdFrameMethods;
+typedef struct SsdFrameVFuncs SsdFrameVFuncs;
 typedef struct SsdFrame SsdFrame;
 
-typedef SsdPicture	(*SsdFrameMethod_getPicture)(SsdFrame* self);
-typedef uint32_t	(*SsdFrameMethod_getDurationTime)(SsdFrame* self);
+typedef SsdPicture	(*SsdFrameVFuncs_getPicture)(SsdFrame* self);
+typedef uint32_t	(*SsdFrameVFuncs_getDurationTime)(SsdFrame* self);
 
-struct SsdFrameMethods
+struct SsdFrameVFuncs
 {
-	SsdFrameMethod_getPicture		getPicture;
-	SsdFrameMethod_getDurationTime	getDurationTime;
+	SsdFrameVFuncs_getPicture		getPicture;
+	SsdFrameVFuncs_getDurationTime	getDurationTime;
 };
 
 struct SsdFrame
 {
-	SsdFrameMethods* methods;
+	SsdFrameVFuncs* vfuncs;
 
 	SsdFrame* next;	// for SsdAnimation
 };
 
 //-------------------------------------------------------------------
-void SsdFrame_initializeMethods(
+void SsdFrame_initializeVFuncs(
 	SsdFrame* self,
-	SsdFrameMethods* methods
+	SsdFrameVFuncs* vfuncs
 	)
 {
-	self->methods = methods;
+	self->vfuncs = vfuncs;
 }
 
 //-------------------------------------------------------------------
@@ -688,7 +648,7 @@ SsdPicture SsdFrame_getPicture(
 	SsdFrame* self
 	)
 {
-	return self->methods->getPicture(self);
+	return self->vfuncs->getPicture(self);
 }
 
 //-------------------------------------------------------------------
@@ -696,7 +656,7 @@ uint32_t SsdFrame_getDurationTime(
 	SsdFrame* self
 	)
 {
-	return self->methods->getDurationTime(self);
+	return self->vfuncs->getDurationTime(self);
 }
 
 //-------------------------------------------------------------------
@@ -705,7 +665,7 @@ uint32_t SsdFrame_getDurationTime(
 typedef struct SsdStaticFrame SsdStaticFrame;
 struct SsdStaticFrame
 {
-	SsdFrameMethods* methods;
+	SsdFrame base;
 
 	SsdPicture picture;
 	uint32_t durationTime;
@@ -732,7 +692,7 @@ uint32_t SsdStaticFrame_getDurationTime(
 }
 
 //-------------------------------------------------------------------
-SsdFrameMethods G_SsdStaticFrameMethods =
+SsdFrameVFuncs gSsdStaticFrameVFuncs =
 {
 	SsdStaticFrame_getPicture,
 	SsdStaticFrame_getDurationTime,
@@ -745,9 +705,9 @@ void SsdStaticFrame_initialize(
 	uint32_t durationTime
 	)
 {
-	SsdFrame_initializeMethods(
+	SsdFrame_initializeVFuncs(
 		(SsdFrame*)self,
-		&G_SsdStaticFrameMethods
+		&gSsdStaticFrameVFuncs
 		);
 
 	self->picture = picture;
@@ -761,7 +721,7 @@ typedef struct SsdDynamicFrame SsdDynamicFrame;
 
 struct SsdDynamicFrame
 {
-	SsdFrameMethods* methods;
+	SsdFrame base;
 
 	SsdPicture (*getPicture)(void* context);
 	void* context;
@@ -789,7 +749,7 @@ uint32_t SsdDynamicFrame_getDurationTime(
 }
 
 //-------------------------------------------------------------------
-SsdFrameMethods G_SsdDynamicFrameMethods =
+SsdFrameVFuncs gSsdDynamicFrameVFuncs =
 {
 	SsdDynamicFrame_getPicture,
 	SsdDynamicFrame_getDurationTime,
@@ -803,9 +763,9 @@ void SsdDynamicFrame_initialize(
 	uint32_t durationTime
 	)
 {
-	SsdFrame_initializeMethods(
+	SsdFrame_initializeVFuncs(
 		(SsdFrame*)self,
-		&G_SsdDynamicFrameMethods
+		&gSsdDynamicFrameVFuncs
 		);
 
 	self->getPicture = getPicture;
@@ -928,32 +888,32 @@ SsdPicture SsdAnimation_getPicture(
 //-------------------------------------------------------------------
 // SsdModeState
 //-------------------------------------------------------------------
-typedef struct SsdModeStateMethods SsdModeStateMethods;
+typedef struct SsdModeStateVFuncs SsdModeStateVFuncs;
 typedef struct SsdModeState SsdModeState;
 
-typedef void (*SsdModeStateMethod_onEntry)(SsdModeState* self);
-typedef void (*SsdModeStateMethod_onExit)(SsdModeState* self);
-typedef void (*SsdModeStateMethod_onTick)(SsdModeState* self, uint32_t elapsedTimeMillisec);
+typedef void (*SsdModeStateVFuncs_onEntry)(SsdModeState* self);
+typedef void (*SsdModeStateVFuncs_onExit)(SsdModeState* self);
+typedef void (*SsdModeStateVFuncs_onTick)(SsdModeState* self, uint32_t elapsedTimeMillisec);
 
-struct SsdModeStateMethods
+struct SsdModeStateVFuncs
 {
-	SsdModeStateMethod_onEntry	onEntry;
-	SsdModeStateMethod_onExit	onExit;
-	SsdModeStateMethod_onTick	onTick;
+	SsdModeStateVFuncs_onEntry	onEntry;
+	SsdModeStateVFuncs_onExit	onExit;
+	SsdModeStateVFuncs_onTick	onTick;
 };
 
 struct SsdModeState
 {
-	SsdModeStateMethods* methods;
+	SsdModeStateVFuncs* vfuncs;
 };
 
 //-------------------------------------------------------------------
-void SsdModeState_initializeMethods(
+void SsdModeState_initializeVFuncs(
 	SsdModeState* self,
-	SsdModeStateMethods* methods
+	SsdModeStateVFuncs* vfuncs
 	)
 {
-	self->methods = methods;
+	self->vfuncs = vfuncs;
 }
 
 //-------------------------------------------------------------------
@@ -969,7 +929,7 @@ void SsdModeState_onEntry(
 	SsdModeState* self
 	)
 {
-	self->methods->onEntry(self);
+	self->vfuncs->onEntry(self);
 }
 
 //-------------------------------------------------------------------
@@ -977,7 +937,7 @@ void SsdModeState_onExit(
 	SsdModeState* self
 	)
 {
-	self->methods->onExit(self);
+	self->vfuncs->onExit(self);
 }
 
 //-------------------------------------------------------------------
@@ -986,7 +946,7 @@ void SsdModeState_onTick(
 	uint32_t elapsedTimeMillisec
 	)
 {
-	self->methods->onTick(self, elapsedTimeMillisec);
+	self->vfuncs->onTick(self, elapsedTimeMillisec);
 }
 
 //-------------------------------------------------------------------
@@ -994,12 +954,13 @@ void SsdModeState_onTick(
 //-------------------------------------------------------------------
 typedef struct SsdTestMode SsdTestMode;
 
-#define cSsdTestMode_numofFrames	9
+#define SSDTESTMODE_NUMOFFRAMES	9
 
 struct SsdTestMode
 {
 	SsdModeState base;
-	SsdStaticFrame frames[cSsdTestMode_numofFrames];
+
+	SsdStaticFrame frames[SSDTESTMODE_NUMOFFRAMES];
 	SsdAnimation animation;
 	SsdDriverWrapper* ssdDriver;
 };
@@ -1033,7 +994,7 @@ void SsdTestMode_onTick(
 }
 
 //-------------------------------------------------------------------
-SsdModeStateMethods G_SsdTestModeMethods =
+SsdModeStateVFuncs gSsdTestModeVFuncs =
 {
 	SsdTestMode_onEntry,
 	SsdModeState_doNothing,
@@ -1048,9 +1009,9 @@ void SsdTestMode_initialize(
 {
 	int index;
 
-	SsdModeState_initializeMethods(
+	SsdModeState_initializeVFuncs(
 		(SsdModeState*)self,
-		&G_SsdTestModeMethods
+		&gSsdTestModeVFuncs
 		);
 
 	SsdStaticFrame_initialize(&self->frames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
@@ -1063,7 +1024,7 @@ void SsdTestMode_initialize(
 	SsdStaticFrame_initialize(&self->frames[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
 	SsdStaticFrame_initialize(&self->frames[8], SEVENSEGDRIVER_BITPTN_BLANK,		250);
 	SsdAnimation_initialize(&self->animation);
-	for(index = 0; index < cSsdTestMode_numofFrames; index++)
+	for(index = 0; index < SSDTESTMODE_NUMOFFRAMES; index++)
 	{
 		SsdAnimation_addFrame(&self->animation, (SsdFrame*)&self->frames[index]);
 	}
@@ -1076,11 +1037,11 @@ void SsdTestMode_initialize(
 //-------------------------------------------------------------------
 typedef struct SsdNormalMode SsdNormalMode;
 
-#define cSsdNormalMode_numofFramesForDebug			1	// TODO: convert array to one variable
-#define cSsdNormalMode_numofFramesForProgram		2
-#define cSsdNormalMode_numofFramesForDotOn			1	// TODO: convert array to one variable
-#define cSsdNormalMode_numofFramesForDotOff			1	// TODO: convert array to one variable
-#define cSsdNormalMode_numofFramesForDotBlink		2
+#define SSDNORMALMODE_NUMOFFRAMES_FORDEBUG			1	// TODO: convert array to one variable
+#define SSDNORMALMODE_NUMOFFRAMES_FORPROGRAM		2
+#define SSDNORMALMODE_NUMOFFRAMES_FORDOTON			1	// TODO: convert array to one variable
+#define SSDNORMALMODE_NUMOFFRAMES_FORDOTOFF		1	// TODO: convert array to one variable
+#define SSDNORMALMODE_NUMOFFRAMES_FORDOTBLINK		2
 
 struct SsdNormalMode
 {
@@ -1093,22 +1054,22 @@ struct SsdNormalMode
 	SsdAnimation rightAnimationForRun;
 
 	// ForDebug
-	SsdStaticFrame leftFramesForDebug[cSsdNormalMode_numofFramesForDebug];
-	SsdStaticFrame rightFramesForDebug[cSsdNormalMode_numofFramesForDebug];
+	SsdStaticFrame leftFramesForDebug[SSDNORMALMODE_NUMOFFRAMES_FORDEBUG];
+	SsdStaticFrame rightFramesForDebug[SSDNORMALMODE_NUMOFFRAMES_FORDEBUG];
 	SsdAnimation leftAnimationForDebug;
 	SsdAnimation rightAnimationForDebug;
 
 	// ForProgram
-	SsdStaticFrame leftFramesForProgram[cSsdNormalMode_numofFramesForProgram];
-	SsdStaticFrame rightFramesForProgram[cSsdNormalMode_numofFramesForProgram];
+	SsdStaticFrame leftFramesForProgram[SSDNORMALMODE_NUMOFFRAMES_FORPROGRAM];
+	SsdStaticFrame rightFramesForProgram[SSDNORMALMODE_NUMOFFRAMES_FORPROGRAM];
 	SsdAnimation leftAnimationForProgram;
 	SsdAnimation rightAnimationForProgram;
 
 	// ForDot
-	SsdStaticFrame dotOnFrames[cSsdNormalMode_numofFramesForDotOn];
-	SsdStaticFrame dotOffFrames[cSsdNormalMode_numofFramesForDotOff];
-	SsdStaticFrame leftDotBlinkFrames[cSsdNormalMode_numofFramesForDotBlink];
-	SsdStaticFrame rightDotBlinkFrames[cSsdNormalMode_numofFramesForDotBlink];
+	SsdStaticFrame dotOnFrames[SSDNORMALMODE_NUMOFFRAMES_FORDOTON];
+	SsdStaticFrame dotOffFrames[SSDNORMALMODE_NUMOFFRAMES_FORDOTOFF];
+	SsdStaticFrame leftDotBlinkFrames[SSDNORMALMODE_NUMOFFRAMES_FORDOTBLINK];
+	SsdStaticFrame rightDotBlinkFrames[SSDNORMALMODE_NUMOFFRAMES_FORDOTBLINK];
 	SsdAnimation dotOnAnimation;;
 	SsdAnimation dotOffAnimation;;
 	SsdAnimation leftDotBlinkAnimation;;
@@ -1189,7 +1150,7 @@ void SsdNormalMode_onTick(
 }
 
 //-------------------------------------------------------------------
-SsdModeStateMethods G_SsdNormalModeMethods =
+SsdModeStateVFuncs gSsdNormalModeVFuncs =
 {
 	SsdNormalMode_onEntry,
 	SsdModeState_doNothing,
@@ -1197,7 +1158,7 @@ SsdModeStateMethods G_SsdNormalModeMethods =
 };
 
 //-------------------------------------------------------------------
-// TODO: replace
+// TODO: replace with enum STATE_EXTERNAL_STATE
 typedef enum e_State e_State;
 enum e_State
 {
@@ -1418,7 +1379,7 @@ void __SsdNormalMode_initializeAnimationForDebug(
 	SsdStaticFrame_initialize(&self->rightFramesForDebug[0],	SEVENSEGDRIVER_BITPTN_DASH,	0);
 	SsdAnimation_initialize(&self->leftAnimationForDebug);
 	SsdAnimation_initialize(&self->rightAnimationForDebug);
-	for(index = 0; index < cSsdNormalMode_numofFramesForDebug; index++)
+	for(index = 0; index < SSDNORMALMODE_NUMOFFRAMES_FORDEBUG; index++)
 	{
 		SsdAnimation_addFrame(&self->leftAnimationForDebug,		(SsdFrame*)&self->leftFramesForDebug[index]);
 		SsdAnimation_addFrame(&self->rightAnimationForDebug,	(SsdFrame*)&self->rightFramesForDebug[index]);
@@ -1439,7 +1400,7 @@ void __SsdNormalMode_initializeAnimationForProgram(
 	SsdStaticFrame_initialize(&self->rightFramesForProgram[1],	SEVENSEGDRIVER_BITPTN_BLANK,	500);
 	SsdAnimation_initialize(&self->leftAnimationForProgram);
 	SsdAnimation_initialize(&self->rightAnimationForProgram);
-	for(index = 0; index < cSsdNormalMode_numofFramesForProgram; index++)
+	for(index = 0; index < SSDNORMALMODE_NUMOFFRAMES_FORPROGRAM; index++)
 	{
 		SsdAnimation_addFrame(&self->leftAnimationForProgram,	(SsdFrame*)&self->leftFramesForProgram[index]);
 		SsdAnimation_addFrame(&self->rightAnimationForProgram,	(SsdFrame*)&self->rightFramesForProgram[index]);
@@ -1455,14 +1416,14 @@ void __SsdNormalMode_initializeAnimationForDot(
 
 	SsdStaticFrame_initialize(&self->dotOnFrames[0],	SEVENSEGDRIVER_BITPTN_DOT,		0);
 	SsdAnimation_initialize(&self->dotOnAnimation);
-	for(index = 0; index < cSsdNormalMode_numofFramesForDotOn; index++)
+	for(index = 0; index < SSDNORMALMODE_NUMOFFRAMES_FORDOTON; index++)
 	{
 		SsdAnimation_addFrame(&self->dotOnAnimation,	(SsdFrame*)&self->dotOnFrames[index]);
 	}
 
 	SsdStaticFrame_initialize(&self->dotOffFrames[0],	SEVENSEGDRIVER_BITPTN_BLANK,	0);
 	SsdAnimation_initialize(&self->dotOffAnimation);
-	for(index = 0; index < cSsdNormalMode_numofFramesForDotOff; index++)
+	for(index = 0; index < SSDNORMALMODE_NUMOFFRAMES_FORDOTOFF; index++)
 	{
 		SsdAnimation_addFrame(&self->dotOffAnimation,	(SsdFrame*)&self->dotOffFrames[index]);
 	}
@@ -1473,7 +1434,7 @@ void __SsdNormalMode_initializeAnimationForDot(
 	SsdStaticFrame_initialize(&self->rightDotBlinkFrames[1],	SEVENSEGDRIVER_BITPTN_BLANK,	500);
 	SsdAnimation_initialize(&self->leftDotBlinkAnimation);
 	SsdAnimation_initialize(&self->rightDotBlinkAnimation);
-	for(index = 0; index < cSsdNormalMode_numofFramesForDotBlink; index++)
+	for(index = 0; index < SSDNORMALMODE_NUMOFFRAMES_FORDOTBLINK; index++)
 	{
 		SsdAnimation_addFrame(&self->leftDotBlinkAnimation,		(SsdFrame*)&self->leftDotBlinkFrames[index]);
 		SsdAnimation_addFrame(&self->rightDotBlinkAnimation,	(SsdFrame*)&self->rightDotBlinkFrames[index]);
@@ -1525,9 +1486,9 @@ Bool SsdNormalMode_initialize(
 	DataLoggingEventMessanger* dataLoggingEventMessanger
 	)
 {
-	SsdModeState_initializeMethods(
+	SsdModeState_initializeVFuncs(
 		(SsdModeState*)self,
-		&G_SsdNormalModeMethods
+		&gSsdNormalModeVFuncs
 		);
 
 	__SsdNormalMode_initializeAnimationForRun(self);
@@ -1549,47 +1510,681 @@ Bool SsdNormalMode_initialize(
 }
 
 //-------------------------------------------------------------------
+// FaultLogRecord
+//-------------------------------------------------------------------
+typedef struct FaultLogRecord FaultLogRecord;
+
+#define FaultLogRawRecord int	// TODO: re-define or replace with proper type
+
+#define FaultLogRawRecord_getAnnex1AsUint32_t(a) 0	// TODO:
+#define FaultLogRawRecord_getAnnex1AsUint16_t(a) 0	// TODO:
+
+//-------------------------------------------------------------------
+// FaultLogTranslation
+//-------------------------------------------------------------------
+typedef struct FaultLogTranslation FaultLogTranslation;
+
+typedef void (*FaultLogTranslationMethod)(
+		FaultLogRawRecord* rawRecord,
+		SsdStaticFrame* leftFrames,		// out
+		SsdStaticFrame* rightFrames,	// out
+		uint32_t* numofFrame			// out
+		);
+
+struct FaultLogTranslation
+{
+	int eventId;
+	FaultLogTranslationMethod translationMethod;
+};
+
+//-------------------------------------------------------------------
+void FaultLogTranslation_initialize(
+	FaultLogTranslation* self,
+	int eventId,
+	FaultLogTranslationMethod translationMethod
+	)
+{
+	self->eventId = eventId;
+	self->translationMethod = translationMethod;
+}
+
+//-------------------------------------------------------------------
+Bool FaultLogTranslation_canTranslate(
+	FaultLogTranslation* self,
+	int eventId
+	)
+{
+	return self->eventId == eventId;
+}
+
+//-------------------------------------------------------------------
+void FaultLogTranslation_translate(
+	FaultLogTranslation* self,
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* leftFrames, 	// out
+	SsdStaticFrame* rightFrames, 	// out
+	uint32_t* numofFrames			// out
+	)
+{
+	self->translationMethod(rawRecord, leftFrames, rightFrames, numofFrames);
+}
+
+//-------------------------------------------------------------------
+// FaultLogTranslator
+//-------------------------------------------------------------------
+typedef struct FaultLogTranslator FaultLogTranslator;
+
+#define EventId1	1 // TODO: replace
+#define EventId2	2 // TODO: replace
+#define EventId4	4 // TODO: replace
+#define EventId5	5 // TODO: replace
+#define EventId6	6 // TODO: replace
+
+#define FAULTLOGTRANSLATOR_NUMOF_TRANSLATION			5
+#define FAULTLOGTRANSLATOR_MAXNUMOF_TRANSLATEDFRAMES	12	// depends on each makeSsdStaticFrameForXXX()
+
+#define FAULTLOG_DISPLAYTIME_OF_ERRORCODE	1000
+#define FAULTLOG_DISPLAYTIME_OF_ANNEX		1000
+#define FAULTLOG_DISPLAYTIME_OF_BLANK		100
+#define FAULTLOG_DISPLAYTIME_OF_ENDBLANK	300
+
+struct FaultLogTranslator
+{
+	FaultLogTranslation translation[FAULTLOGTRANSLATOR_NUMOF_TRANSLATION];
+};
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_makeSsdStaticFramesForIPAddr(
+	SsdPicture leftErrorCode,
+	SsdPicture rightErrorCode,
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	uint32_t annex1		= FaultLogRawRecord_getAnnex1AsUint32_t(rawRecord);
+	uint8_t hh			= SsdUtil_get31to24bitFromUint32_t(annex1);
+	uint8_t hl			= SsdUtil_get23to16bitFromUint32_t(annex1);
+	uint8_t lh			= SsdUtil_get15to8bitFromUint32_t(annex1);
+	uint8_t ll			= SsdUtil_get7to0bitFromUint32_t(annex1);
+	SsdPicture leftHH	= SsdPicture_getUpper4bitPictureAsHex(hh);
+	SsdPicture rightHH	= SsdPicture_getLower4bitPictureAsHex(hh);
+	SsdPicture leftHL	= SsdPicture_getUpper4bitPictureAsHex(hl);
+	SsdPicture rightHL	= SsdPicture_getLower4bitPictureAsHex(hl);
+	SsdPicture leftLH	= SsdPicture_getUpper4bitPictureAsHex(lh);
+	SsdPicture rightLH	= SsdPicture_getLower4bitPictureAsHex(lh);
+	SsdPicture leftLL	= SsdPicture_getUpper4bitPictureAsHex(ll);
+	SsdPicture rightLL	= SsdPicture_getLower4bitPictureAsHex(ll);
+
+	SsdStaticFrame_initialize(&lFrames[0], leftErrorCode,					FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&rFrames[0], rightErrorCode,					FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&lFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[2], SEVENSEGDRIVER_BITPTN_I,			FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[2], SEVENSEGDRIVER_BITPTN_P,			FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[4], leftHH,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[4], rightHH,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[5], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[5], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[6], leftHL,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[6], rightHL,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[7], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[7], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[8], leftLH,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[8], rightLH,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[9], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[9], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[10], leftLL,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[10], rightLL,						FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[11], SEVENSEGDRIVER_BITPTN_BLANK,	FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+	SsdStaticFrame_initialize(&rFrames[11], SEVENSEGDRIVER_BITPTN_BLANK,	FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+
+	*numofFrames = 12;
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_makeSsdStaticFramesForAssemblyInstanceNo(
+	SsdPicture leftErrorCode,
+	SsdPicture rightErrorCode,
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	uint16_t annex1			= FaultLogRawRecord_getAnnex1AsUint16_t(rawRecord);
+	uint8_t high			= SsdUtil_get15to8bitFromUint16_t(annex1);
+	uint8_t low				= SsdUtil_get7to0bitFromUint16_t(annex1);
+	SsdPicture leftHigh		= SsdPicture_getUpper4bitPictureAsHex(high);
+	SsdPicture rightHigh	= SsdPicture_getLower4bitPictureAsHex(high);
+	SsdPicture leftLow		= SsdPicture_getUpper4bitPictureAsHex(low);
+	SsdPicture rightLow		= SsdPicture_getLower4bitPictureAsHex(low);
+
+	SsdStaticFrame_initialize(&lFrames[0], leftErrorCode,					FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&rFrames[0], rightErrorCode,					FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&lFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[2], leftHigh,						FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[2], rightHigh,						FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[4], leftLow,							FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&rFrames[4], rightLow,						FAULTLOG_DISPLAYTIME_OF_ANNEX);
+	SsdStaticFrame_initialize(&lFrames[5], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+	SsdStaticFrame_initialize(&rFrames[5], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+
+	*numofFrames = 6;
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_makeSsdStaticFramesForSingleErrorCode(
+	SsdPicture leftErrorCode,
+	SsdPicture rightErrorCode,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	SsdStaticFrame_initialize(&lFrames[0], leftErrorCode,					FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&rFrames[0], rightErrorCode,					FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&lFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+	SsdStaticFrame_initialize(&rFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+
+	*numofFrames = 2;
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_makeSsdStaticFramesForDoubleErrorCode(
+	SsdPicture left1stErrorCode,
+	SsdPicture right1stErrorCode,
+	SsdPicture left2ndErrorCode,
+	SsdPicture right2ndErrorCode,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	SsdStaticFrame_initialize(&lFrames[0], left1stErrorCode,				FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&rFrames[0], right1stErrorCode,				FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&lFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&rFrames[1], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_BLANK);
+	SsdStaticFrame_initialize(&lFrames[2], left2ndErrorCode,				FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&rFrames[2], right2ndErrorCode,				FAULTLOG_DISPLAYTIME_OF_ERRORCODE);
+	SsdStaticFrame_initialize(&lFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+	SsdStaticFrame_initialize(&rFrames[3], SEVENSEGDRIVER_BITPTN_BLANK,		FAULTLOG_DISPLAYTIME_OF_ENDBLANK);
+
+	*numofFrames = 4;
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_translationForEvent1(
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	__FaultLogTranslator_makeSsdStaticFramesForIPAddr(
+		SEVENSEGDRIVER_BITPTN_D,
+		SEVENSEGDRIVER_BITPTN_6,
+		rawRecord,
+		lFrames,
+		rFrames,
+		numofFrames
+		);
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_translationForEvent2(
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	__FaultLogTranslator_makeSsdStaticFramesForIPAddr(
+		SEVENSEGDRIVER_BITPTN_D,
+		SEVENSEGDRIVER_BITPTN_A,
+		rawRecord,
+		lFrames,
+		rFrames,
+		numofFrames
+		);
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_translationForEvent4(
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	__FaultLogTranslator_makeSsdStaticFramesForAssemblyInstanceNo(
+		SEVENSEGDRIVER_BITPTN_A,
+		SEVENSEGDRIVER_BITPTN_0,
+		rawRecord,
+		lFrames,
+		rFrames,
+		numofFrames
+		);
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_translationForEvent5(
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	(void)rawRecord;
+
+	__FaultLogTranslator_makeSsdStaticFramesForSingleErrorCode(
+		SEVENSEGDRIVER_BITPTN_E,
+		SEVENSEGDRIVER_BITPTN_8,
+		lFrames,
+		rFrames,
+		numofFrames
+		);
+}
+
+//-------------------------------------------------------------------
+void __FaultLogTranslator_translationForEvent6(
+	FaultLogRawRecord* rawRecord,
+	SsdStaticFrame* lFrames,	// out
+	SsdStaticFrame* rFrames,	// out
+	uint32_t* numofFrames		// out
+	)
+{
+	(void)rawRecord;
+
+	__FaultLogTranslator_makeSsdStaticFramesForDoubleErrorCode(
+		SEVENSEGDRIVER_BITPTN_E,
+		SEVENSEGDRIVER_BITPTN_1,
+		SEVENSEGDRIVER_BITPTN_0,
+		SEVENSEGDRIVER_BITPTN_1,
+		lFrames,
+		rFrames,
+		numofFrames
+		);
+}
+
+//-------------------------------------------------------------------
+void FaultLogTranslator_initialize(
+	FaultLogTranslator* self
+	)
+{
+	FaultLogTranslation_initialize(&self->translation[0], EventId1, __FaultLogTranslator_translationForEvent1);
+	FaultLogTranslation_initialize(&self->translation[1], EventId2, __FaultLogTranslator_translationForEvent2);
+	FaultLogTranslation_initialize(&self->translation[2], EventId4, __FaultLogTranslator_translationForEvent4);
+	FaultLogTranslation_initialize(&self->translation[3], EventId5, __FaultLogTranslator_translationForEvent5);
+	FaultLogTranslation_initialize(&self->translation[4], EventId6, __FaultLogTranslator_translationForEvent6);
+}
+
+//-------------------------------------------------------------------
+FaultLogTranslation* __FaultLogTranslator_findTranslation(
+	FaultLogTranslator* self,
+	int eventId
+	)
+{
+	FaultLogTranslation* result;
+	int index;
+
+	result = NULL;
+	for(index = 0; index < FAULTLOGTRANSLATOR_NUMOF_TRANSLATION; index++)
+	{
+		if(FaultLogTranslation_canTranslate(&self->translation[index], eventId))
+		{
+			result = &self->translation[index];
+			break;
+		}
+	}
+	return result;
+}
+
+//-------------------------------------------------------------------
+Bool FaultLogTranslator_canTranslate(
+	FaultLogTranslator* self,
+	int eventId
+	)
+{
+	FaultLogTranslation* translation;
+	Bool result;
+
+	translation = __FaultLogTranslator_findTranslation(self, eventId);
+	if(translation != NULL)
+	{
+		result = TRUE;
+	}
+	else
+	{
+		result = FALSE;
+	}
+	return result;
+}
+
+//-------------------------------------------------------------------
+void FaultLogTranslator_translate(
+	FaultLogTranslator* self,
+	int* eventIds,
+	FaultLogRawRecord* rawRecords,
+	uint32_t numofEventIds,
+	SsdStaticFrame** leftFrames,		// out
+	SsdStaticFrame** rightFrames,		// out
+	uint32_t* numofFramesForEachRecord	// out
+	)
+{
+	FaultLogTranslation* translation;
+	int index;
+
+	for(index = 0; index < numofEventIds; index++)
+	{
+		translation = __FaultLogTranslator_findTranslation(self, eventIds[index]);
+
+		FaultLogTranslation_translate(
+			translation,
+			&rawRecords[index],
+			leftFrames[index],
+			rightFrames[index],
+			&numofFramesForEachRecord[index]
+			);
+	}
+}
+
+//-------------------------------------------------------------------
+// FaultLogWatcher
+//-------------------------------------------------------------------
+typedef struct FaultLogWatcher FaultLogWatcher;
+
+#define FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS	10
+
+struct FaultLogWatcher
+{
+	EventMessanger eventMessanger;
+	FaultLogTranslator faultLogTranslator;
+
+	int eventIds[FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS];
+	FaultLogRawRecord rawRecords[FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS];
+	uint32_t numofEventIds;
+
+	SsdStaticFrame leftFrames
+		[FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS][FAULTLOGTRANSLATOR_MAXNUMOF_TRANSLATEDFRAMES];
+	SsdStaticFrame rightFrames
+		[FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS][FAULTLOGTRANSLATOR_MAXNUMOF_TRANSLATEDFRAMES];
+	uint32_t numofFramesForEachRecord[FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS];
+};
+
+//-------------------------------------------------------------------
+void FaultLogWatcher_initialize(
+	FaultLogWatcher* self
+	)
+{
+	EventMessanger_initialize(&self->eventMessanger);
+	FaultLogTranslator_initialize(&self->faultLogTranslator);
+	// TODO: register FaultLogWatcher_doCyclicTask() into ApplicationTimer
+}
+
+//-------------------------------------------------------------------
+static void __FaultLogWatcher_lock(
+	FaultLogWatcher* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __FaultLogWatcher_unlock(
+	FaultLogWatcher* self
+	)
+{
+	// TODO
+}
+
+//-------------------------------------------------------------------
+static void __FaultLogWatcher_notifyUpdated(
+	FaultLogWatcher* self
+	)
+{
+	__FaultLogWatcher_lock(self);
+	EventMessanger_notifyUpdated(&self->eventMessanger);
+	__FaultLogWatcher_unlock(self);
+}
+
+//-------------------------------------------------------------------
+Bool __FaultLogWatcher_canTranslate(
+	void* context,
+	int eventId
+	)
+{
+	FaultLogWatcher* self = (FaultLogWatcher*)context;
+	Bool result;
+
+	result = FALSE;
+	if(FaultLogTranslator_canTranslate(&self->faultLogTranslator, eventId))
+	{
+		self->eventIds[self->numofEventIds] = eventId;
+		self->numofEventIds += 1;
+		result = TRUE;
+	}
+	return result;
+}
+
+//-------------------------------------------------------------------
+void FaultLogWatcher_doCyclicTask(
+	FaultLogWatcher* self
+	)
+{
+	// TODO: lock & unlock
+
+	/*
+	 * tentative code
+	
+	if(EventManager_getUpdateCount() != self->previousUpdateCount)
+	{
+		uint32_t dummy;
+
+		self->numofEventIds = 0;
+		records = EventManager_readOldestRecordsSatisfyingSpecificCondition(
+					__FaultLogWatcher_canTranslate,
+					(void*)self,
+					self->rawRecords,
+					&dummy
+					);
+		FaultLogTranslator_translate(
+					&self->faultLogTranslator,
+					self->rawRecords,
+					self->numofEventIds,
+					self->leftFrames,
+					self->rightFrames,
+					&self->numofFramesForEachRecord
+					);
+		__FaultLogWatcher_notifyUpdated(&self->eventMessanger);
+	}
+	*/
+}
+
+//-------------------------------------------------------------------
+Bool FaultLogWatcher_subscribe(
+	FaultLogWatcher* self,
+	EventMessangerCallback callback,
+	void* context
+	)
+{
+	Bool result;
+
+	__FaultLogWatcher_lock(self);
+	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
+	__FaultLogWatcher_unlock(self);
+
+	return result;
+}
+
+//-------------------------------------------------------------------
+void FaultLogWatcher_readFaultLog(
+	FaultLogWatcher* self
+	// TODO: decide arguments
+	)
+{
+	// TODO: lock & unlock
+}
+
+//-------------------------------------------------------------------
+// SsdFaultMode
+//-------------------------------------------------------------------
+typedef struct SsdFaultMode SsdFaultMode;
+
+#define SSDFAULTMODE_NUMOFFRAMES	9
+
+struct SsdFaultMode
+{
+	SsdModeState base;
+
+	SsdDynamicFrame frames[SSDFAULTMODE_NUMOFFRAMES];
+	SsdAnimation animation;
+
+	SsdDriverWrapper* ssdDriver;
+	FaultLogWatcher* faultLogWatcher;
+};
+
+//-------------------------------------------------------------------
+void SsdFaultMode_onEntry(
+	SsdModeState* base
+	)
+{
+	SsdFaultMode* self = (SsdFaultMode*)base;
+	SsdPicture picture;
+
+	// TODO
+	//SsdAnimation_restartAnimation(&self->animation);
+	//picture = SsdAnimation_getFirstPicture(&self->animation);
+	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+}
+
+//-------------------------------------------------------------------
+void SsdFaultMode_onTick(
+	SsdModeState* base,
+	uint32_t elapsedTimeMillisec
+	)
+{
+	SsdFaultMode* self = (SsdFaultMode*)base;
+	SsdPicture picture;
+	Bool isFinished = FALSE;
+
+	//picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
+	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+}
+
+//-------------------------------------------------------------------
+SsdModeStateVFuncs gSsdFaultModeVFuncs =
+{
+	SsdFaultMode_onEntry,
+	SsdModeState_doNothing,
+	SsdFaultMode_onTick,
+};
+
+//-------------------------------------------------------------------
+static void __SsdFaultMode_notifyFaultLogUpdated(
+	void* context
+	)
+{
+	SsdFaultMode* self = (SsdFaultMode*)context;
+
+	// TODO
+	/*
+	faultLogWather.getFaultLog()
+	self.updateAnimation(faultLog)
+	if(numofFaultLog == 0)
+	{
+		SsdModeStateMachine_onEvent(self->stateMachine, eSsdModeTransitionEvent_onFaultRemoved);
+	}
+	else
+	{
+		SsdModeStateMachine_onEvent(self->stateMachine, eSsdModeTransitionEvent_onFaultOccured);
+	}
+	*/
+}
+
+//-------------------------------------------------------------------
+void SsdFaultMode_initialize(
+	SsdFaultMode* self,
+	SsdDriverWrapper* ssdDriver,
+	FaultLogWatcher* faultLogWatcher
+	)
+{
+	int index;
+
+	SsdModeState_initializeVFuncs(
+		(SsdModeState*)self,
+		&gSsdFaultModeVFuncs
+		);
+
+	// TODO
+	//SsdStaticFrame_initialize(&self->frames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
+	//SsdStaticFrame_initialize(&self->frames[1], SEVENSEGDRIVER_BITPTN_TOP,			250);
+	//SsdStaticFrame_initialize(&self->frames[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,		250);
+	//SsdStaticFrame_initialize(&self->frames[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,	250);
+	//SsdStaticFrame_initialize(&self->frames[4], SEVENSEGDRIVER_BITPTN_BOTTOM,		250);
+	//SsdStaticFrame_initialize(&self->frames[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,		250);
+	//SsdStaticFrame_initialize(&self->frames[6], SEVENSEGDRIVER_BITPTN_DASH,			250);
+	//SsdStaticFrame_initialize(&self->frames[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
+	//SsdStaticFrame_initialize(&self->frames[8], SEVENSEGDRIVER_BITPTN_BLANK,		250);
+	//SsdAnimation_initialize(&self->animation);
+	//for(index = 0; index < SSDFAULTMODE_NUMOFFRAMES; index++)
+	//{
+	//	SsdAnimation_addFrame(&self->animation, (SsdFrame*)&self->frames[index]);
+	//}
+
+	// TODO
+	self->ssdDriver = ssdDriver;
+	self->faultLogWatcher = faultLogWatcher;
+}
+
+//-------------------------------------------------------------------
 // SsdRestoreMode
 //-------------------------------------------------------------------
 typedef struct SsdRestoreMode SsdRestoreMode;
 
-#define cSsdRestoreMode_numofFramesForInitializing				8
-#define cSsdRestoreMode_numofFramesForProcessing				4
-#define cSsdRestoreMode_numofFramesForSignature					2
-#define cSsdRestoreMode_numofFramesForSignatureWithDot			2
-#define cSsdRestoreMode_numofFramesForSignatureWithDotAndDate	13
+#define SSDRESTOREMODE_NUMOFFRAMES_FORINITIALIZING				8
+#define SSDRESTOREMODE_NUMOFFRAMES_FORPROCESSING				4
+#define SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATURE					2
+#define SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOT			2
+#define SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOTANDDATE	13
 
 struct SsdRestoreMode
 {
 	SsdModeState base;
 
 	// ForInitializing
-	SsdStaticFrame leftFramesForInitializing[cSsdRestoreMode_numofFramesForInitializing];
-	SsdStaticFrame rightFramesForInitializing[cSsdRestoreMode_numofFramesForInitializing];
+	SsdStaticFrame leftFramesForInitializing[SSDRESTOREMODE_NUMOFFRAMES_FORINITIALIZING];
+	SsdStaticFrame rightFramesForInitializing[SSDRESTOREMODE_NUMOFFRAMES_FORINITIALIZING];
 	SsdAnimation leftAnimationForInitializing;
 	SsdAnimation rightAnimationForInitializing;
 
 	// ForProcessing
-	SsdStaticFrame leftFramesForProcessing[cSsdRestoreMode_numofFramesForProcessing];
-	SsdStaticFrame rightFramesForProcessing[cSsdRestoreMode_numofFramesForProcessing];
+	SsdStaticFrame leftFramesForProcessing[SSDRESTOREMODE_NUMOFFRAMES_FORPROCESSING];
+	SsdStaticFrame rightFramesForProcessing[SSDRESTOREMODE_NUMOFFRAMES_FORPROCESSING];
 	SsdAnimation leftAnimationForProcessing;
 	SsdAnimation rightAnimationForProcessing;
 
 	// ForSignature
-	SsdDynamicFrame leftFramesForSignature[cSsdRestoreMode_numofFramesForSignature];
-	SsdDynamicFrame rightFramesForSignature[cSsdRestoreMode_numofFramesForSignature];
+	SsdDynamicFrame leftFramesForSignature[SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATURE];
+	SsdDynamicFrame rightFramesForSignature[SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATURE];
 	SsdAnimation leftAnimationForSignature;
 	SsdAnimation rightAnimationForSignature;
 
 	// ForSignatureWithDot
-	SsdDynamicFrame leftFramesForSignatureWithDot[cSsdRestoreMode_numofFramesForSignatureWithDot];
-	SsdDynamicFrame rightFramesForSignatureWithDot[cSsdRestoreMode_numofFramesForSignatureWithDot];
+	SsdDynamicFrame leftFramesForSignatureWithDot[SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOT];
+	SsdDynamicFrame rightFramesForSignatureWithDot[SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOT];
 	SsdAnimation leftAnimationForSignatureWithDot;
 	SsdAnimation rightAnimationForSignatureWithDot;
 
 	// ForSignatureWithDotAndDate
-	SsdDynamicFrame leftFramesForSignatureWithDotAndDate[cSsdRestoreMode_numofFramesForSignatureWithDotAndDate];
-	SsdDynamicFrame rightFramesForSignatureWithDotAndDate[cSsdRestoreMode_numofFramesForSignatureWithDotAndDate];
+	SsdDynamicFrame leftFramesForSignatureWithDotAndDate[SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOTANDDATE];
+	SsdDynamicFrame rightFramesForSignatureWithDotAndDate[SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOTANDDATE];
 	SsdAnimation leftAnimationForSignatureWithDotAndDate;
 	SsdAnimation rightAnimationForSignatureWithDotAndDate;
 
@@ -1653,7 +2248,7 @@ void SsdRestoreMode_onTick(
 }
 
 //-------------------------------------------------------------------
-SsdModeStateMethods G_SsdRestoreModeMethods =
+SsdModeStateVFuncs gSsdRestoreModeVFuncs =
 {
 	SsdRestoreMode_onEntry,
 	SsdModeState_doNothing,
@@ -2129,7 +2724,7 @@ static void __SsdRestoreMode_initializeAnimationForInitializing(
 
 	SsdAnimation_initialize(lAnim);
 	SsdAnimation_initialize(rAnim);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForInitializing; index++)
+	for(index = 0; index < SSDRESTOREMODE_NUMOFFRAMES_FORINITIALIZING; index++)
 	{
 		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
 		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
@@ -2159,7 +2754,7 @@ static void __SsdRestoreMode_initializeAnimationForProcessing(
 
 	SsdAnimation_initialize(lAnim);
 	SsdAnimation_initialize(rAnim);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForProcessing; index++)
+	for(index = 0; index < SSDRESTOREMODE_NUMOFFRAMES_FORPROCESSING; index++)
 	{
 		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
 		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
@@ -2185,7 +2780,7 @@ static void __SsdRestoreMode_initializeAnimationForSignature(
 
 	SsdAnimation_initialize(lAnim);
 	SsdAnimation_initialize(rAnim);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForSignature; index++)
+	for(index = 0; index < SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATURE; index++)
 	{
 		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
 		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
@@ -2211,7 +2806,7 @@ static void __SsdRestoreMode_initializeAnimationForSignatureWithDot(
 
 	SsdAnimation_initialize(lAnim);
 	SsdAnimation_initialize(rAnim);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForSignatureWithDot; index++)
+	for(index = 0; index < SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOT; index++)
 	{
 		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
 		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
@@ -2259,7 +2854,7 @@ static void __SsdRestoreMode_initializeAnimationForSignatureWithDotAndDate(
 
 	SsdAnimation_initialize(lAnim);
 	SsdAnimation_initialize(rAnim);
-	for(index = 0; index < cSsdRestoreMode_numofFramesForSignatureWithDotAndDate; index++)
+	for(index = 0; index < SSDRESTOREMODE_NUMOFFRAMES_FORSIGNATUREWITHDOTANDDATE; index++)
 	{
 		SsdAnimation_addFrame(lAnim, (SsdFrame*)&lFrames[index]);
 		SsdAnimation_addFrame(rAnim, (SsdFrame*)&rFrames[index]);
@@ -2273,9 +2868,9 @@ void SsdRestoreMode_initialize(
 	ConfigEventMessanger* configEventMessanger
 	)
 {
-	SsdModeState_initializeMethods(
+	SsdModeState_initializeVFuncs(
 		(SsdModeState*)self,
-		&G_SsdRestoreModeMethods
+		&gSsdRestoreModeVFuncs
 		);
 
 	__SsdRestoreMode_initializeAnimationForInitializing(self);
@@ -2354,12 +2949,12 @@ SsdModeState* SsdModeTransition_getDstState(
 //-------------------------------------------------------------------
 // SsdModeStateMachine
 //-------------------------------------------------------------------
-#define cSsdModeStateMachine_maxNumofTransitions 32
+#define SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS	32
 typedef struct SsdModeStateMachine SsdModeStateMachine;
 struct SsdModeStateMachine
 {
 	SsdModeState* state;
-	SsdModeTransition transitions[cSsdModeStateMachine_maxNumofTransitions];
+	SsdModeTransition transitions[SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS];
 	int numofTransitions;
 };
 
@@ -2407,9 +3002,9 @@ Bool SsdModeStateMachine_addTransition(
 {
 	int index;
 
-	if(self->numofTransitions == cSsdModeStateMachine_maxNumofTransitions)
+	if(self->numofTransitions == SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS)
 	{
-		return FALSE;	// TODO: guarantee not to come by test
+		return FALSE;	// TODO: guarantee not to come here by test
 	}
 
 	SsdModeTransition_initialize(&self->transitions[self->numofTransitions], srcState, dstState, event);
@@ -2597,6 +3192,14 @@ uint8_t SsdManager_initial(
 					);
 
 	return TRUE; // TODO
+}
+
+//-------------------------------------------------------------------
+void SsdManager_notifySignatureUpdated(
+	void
+	)
+{
+	// TODO: prepare I/Fs for each EventMessanger
 }
 
 int main(void)
