@@ -950,6 +950,191 @@ void SsdModeState_onTick(
 }
 
 //-------------------------------------------------------------------
+// SsdModeTransitionEvent
+//-------------------------------------------------------------------
+typedef enum eSsdModeTransitionEvent eSsdModeTransitionEvent;
+enum eSsdModeTransitionEvent
+{
+	eSsdModeTransitionEvent_onInitialized = 0,
+	eSsdModeTransitionEvent_onRestore,
+	eSsdModeTransitionEvent_onCriticalFault,
+	eSsdModeTransitionEvent_onFaultOccured,
+	eSsdModeTransitionEvent_onFaultRemoved,
+	eSsdModeTransitionEvent_onServiceSwitchOn,
+	eSsdModeTransitionEvent_onServiceSwitchServiceFinished,
+
+	eSsdModeTransitionEvent_numofEvents,
+};
+
+//-------------------------------------------------------------------
+// SsdModeTransition
+//-------------------------------------------------------------------
+typedef struct SsdModeTransition SsdModeTransition;
+struct SsdModeTransition
+{
+	SsdModeState* src;
+	SsdModeState* dst;
+	eSsdModeTransitionEvent event;
+};
+
+//-------------------------------------------------------------------
+void SsdModeTransition_initialize(
+	SsdModeTransition* self,
+	SsdModeState* src,
+	SsdModeState* dst,
+	eSsdModeTransitionEvent event
+	)
+{
+	self->src = src;
+	self->dst = dst;
+	self->event = event;
+}
+
+//-------------------------------------------------------------------
+Bool SsdModeTransition_canTransit(
+	SsdModeTransition* self,
+	SsdModeState* src,
+	eSsdModeTransitionEvent event
+	)
+{
+	return (self->src == src) && (self->event == event);
+}
+
+//-------------------------------------------------------------------
+SsdModeState* SsdModeTransition_getDstState(
+	SsdModeTransition* self
+	)
+{
+	return self->dst;
+}
+
+//-------------------------------------------------------------------
+// SsdModeStateMachine
+//-------------------------------------------------------------------
+#define SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS	32
+typedef struct SsdModeStateMachine SsdModeStateMachine;
+struct SsdModeStateMachine
+{
+	SsdModeState* state;
+	SsdModeTransition transitions[SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS];
+	int numofTransitions;
+};
+
+//-------------------------------------------------------------------
+static void __SsdModeStateMachine_lock(
+	SsdModeStateMachine* self
+	)
+{
+	// TODO	
+}
+
+//-------------------------------------------------------------------
+static void __SsdModeStateMachine_unlock(
+	SsdModeStateMachine* self
+	)
+{
+	// TODO	
+}
+
+//-------------------------------------------------------------------
+void SsdModeStateMachine_initialize(
+	SsdModeStateMachine* self
+	)
+{
+	self->state = NULL;
+	self->numofTransitions = 0;
+}
+
+//-------------------------------------------------------------------
+void SsdModeStateMachine_setInitialState(
+	SsdModeStateMachine* self,
+	SsdModeState* initialState
+	)
+{
+	self->state = initialState;
+}
+
+//-------------------------------------------------------------------
+Bool SsdModeStateMachine_addTransition(
+	SsdModeStateMachine* self,
+	SsdModeState* srcState,
+	SsdModeState* dstState,
+	eSsdModeTransitionEvent event
+	)
+{
+	int index;
+
+	if(self->numofTransitions == SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS)
+	{
+		return FALSE;	// TODO: guarantee not to come here by test
+	}
+
+	SsdModeTransition_initialize(&self->transitions[self->numofTransitions], srcState, dstState, event);
+	self->numofTransitions += 1;
+	return TRUE;
+}
+
+//-------------------------------------------------------------------
+void SsdModeStateMachine_start(
+	SsdModeStateMachine* self
+	)
+{
+	SsdModeState_onEntry(self->state);
+}
+
+//-------------------------------------------------------------------
+static void __SsdModeStateMachine_transit(
+	SsdModeStateMachine* self,
+	SsdModeState* dst
+	)
+{
+	SsdModeState* src = self->state;
+
+	SsdModeState_onExit(src);
+	SsdModeState_onEntry(dst);
+
+	self->state = dst;
+}
+
+//-------------------------------------------------------------------
+void SsdModeStateMachine_onEvent(
+	SsdModeStateMachine* self,
+	eSsdModeTransitionEvent event
+	)
+{
+	int index;
+
+	__SsdModeStateMachine_lock(self);
+
+	for(index = 0; index < self->numofTransitions; index++)
+	{
+		SsdModeTransition* transition = &self->transitions[index];
+
+		if(SsdModeTransition_canTransit(transition, self->state, event))
+		{
+			SsdModeState* dst = SsdModeTransition_getDstState(transition);
+			__SsdModeStateMachine_transit(self, dst);
+			break;
+		}
+	}
+
+	__SsdModeStateMachine_unlock(self);
+}
+
+//-------------------------------------------------------------------
+void SsdModeStateMachine_onTick(
+	SsdModeStateMachine* self,
+	uint32_t elapsedTimeMillisec
+	)
+{
+	__SsdModeStateMachine_lock(self);
+
+	SsdModeState_onTick(self->state, elapsedTimeMillisec);
+
+	__SsdModeStateMachine_unlock(self);
+}
+
+//-------------------------------------------------------------------
 // SsdTestMode
 //-------------------------------------------------------------------
 typedef struct SsdTestMode SsdTestMode;
@@ -1929,29 +2114,11 @@ void FaultLogWatcher_initialize(
 }
 
 //-------------------------------------------------------------------
-static void __FaultLogWatcher_lock(
-	FaultLogWatcher* self
-	)
-{
-	// TODO
-}
-
-//-------------------------------------------------------------------
-static void __FaultLogWatcher_unlock(
-	FaultLogWatcher* self
-	)
-{
-	// TODO
-}
-
-//-------------------------------------------------------------------
 static void __FaultLogWatcher_notifyUpdated(
 	FaultLogWatcher* self
 	)
 {
-	__FaultLogWatcher_lock(self);
 	EventMessanger_notifyUpdated(&self->eventMessanger);
-	__FaultLogWatcher_unlock(self);
 }
 
 //-------------------------------------------------------------------
@@ -2016,20 +2183,40 @@ Bool FaultLogWatcher_subscribe(
 {
 	Bool result;
 
-	__FaultLogWatcher_lock(self);
 	result = EventMessanger_subscribe(&self->eventMessanger, callback, context);
-	__FaultLogWatcher_unlock(self);
 
 	return result;
 }
 
 //-------------------------------------------------------------------
-void FaultLogWatcher_readFaultLog(
-	FaultLogWatcher* self
-	// TODO: decide arguments
+void FaultLogWatcher_readSsdStaticFramesOfFaultLog(
+	FaultLogWatcher* self,
+	SsdStaticFrame* leftFrames,		// out
+	SsdStaticFrame* rightFrames,	// out
+	uint32_t* numofFrames			// out
 	)
 {
-	// TODO: lock & unlock
+	int index1;
+	int index2;
+
+	*numofFrames = 0;
+	for(index1 = 0; index1 < self->numofEventIds; index1++)
+	{
+		for(index2 = 0; index2 < self->numofFramesForEachRecord[index1]; index2++)
+		{
+			SsdStaticFrame_initialize(
+				&leftFrames[*numofFrames],
+				SsdFrame_getPicture((SsdFrame*)&self->leftFrames[index1][index2]),
+				SsdFrame_getDurationTime((SsdFrame*)&self->leftFrames[index1][index2])
+				);
+			SsdStaticFrame_initialize(
+				&rightFrames[*numofFrames],
+				SsdFrame_getPicture((SsdFrame*)&self->rightFrames[index1][index2]),
+				SsdFrame_getDurationTime((SsdFrame*)&self->rightFrames[index1][index2])
+				);
+			*numofFrames += 1;
+		}
+	}
 }
 
 //-------------------------------------------------------------------
@@ -2037,18 +2224,78 @@ void FaultLogWatcher_readFaultLog(
 //-------------------------------------------------------------------
 typedef struct SsdFaultMode SsdFaultMode;
 
-#define SSDFAULTMODE_NUMOFFRAMES	9
+#define SSDFAULTMODE_NUMOFFRAMES	FAULTLOGWATCHER_MAXNUMOF_WATCHING_RECORDS * FAULTLOGTRANSLATOR_MAXNUMOF_TRANSLATEDFRAMES
 
 struct SsdFaultMode
 {
 	SsdModeState base;
 
-	SsdDynamicFrame frames[SSDFAULTMODE_NUMOFFRAMES];
-	SsdAnimation animation;
+	SsdStaticFrame* frontSideLeftFrames;
+	SsdStaticFrame* frontSideRightFrames;
+	SsdStaticFrame* backSideLeftFrames;
+	SsdStaticFrame* backSideRightFrames;
+	uint32_t numofBackSideFrames;
+	Bool isBackSideUpdated;
+
+	SsdStaticFrame leftFrames1[SSDFAULTMODE_NUMOFFRAMES];
+	SsdStaticFrame rightFrames1[SSDFAULTMODE_NUMOFFRAMES];
+	SsdStaticFrame leftFrames2[SSDFAULTMODE_NUMOFFRAMES];
+	SsdStaticFrame rightFrames2[SSDFAULTMODE_NUMOFFRAMES];
+
+	SsdAnimation leftAnimation;
+	SsdAnimation rightAnimation;
 
 	SsdDriverWrapper* ssdDriver;
 	FaultLogWatcher* faultLogWatcher;
+	SsdModeStateMachine* stateMachine;
 };
+
+//-------------------------------------------------------------------
+void __SsdFaultMode_updateAnimationByBackSideFrames(
+	SsdFaultMode* self
+	)
+{
+	int index;
+
+	SsdAnimation_initialize(&self->leftAnimation);
+	SsdAnimation_initialize(&self->rightAnimation);
+	for(index = 0; index < self->numofBackSideFrames; index++)
+	{
+		SsdAnimation_addFrame(&self->leftAnimation,		(SsdFrame*)&self->backSideLeftFrames[index]);
+		SsdAnimation_addFrame(&self->rightAnimation,	(SsdFrame*)&self->backSideRightFrames[index]);
+	}
+}
+
+//-------------------------------------------------------------------
+static SsdStaticFrame* __SsdFaultMode_changeFrontSideAndBackSide(
+	SsdFaultMode* self
+	)
+{
+	SsdStaticFrame* temp;
+
+	// change left
+	temp = self->frontSideLeftFrames;
+	self->frontSideLeftFrames = self->backSideLeftFrames;
+	self->backSideLeftFrames = temp;
+	// change right
+	temp = self->frontSideRightFrames;
+	self->frontSideRightFrames = self->backSideRightFrames;
+	self->backSideRightFrames = temp;
+}
+
+//-------------------------------------------------------------------
+static void __SsdFaultMode_refreshAnimationBasedOnLatestInfo(
+	SsdFaultMode* self
+	)
+{
+	if(self->isBackSideUpdated)
+	{
+		__SsdFaultMode_updateAnimationByBackSideFrames(self);
+		__SsdFaultMode_changeFrontSideAndBackSide(self);
+		self->numofBackSideFrames = 0;
+		self->isBackSideUpdated = FALSE;
+	}
+}
 
 //-------------------------------------------------------------------
 void SsdFaultMode_onEntry(
@@ -2056,12 +2303,16 @@ void SsdFaultMode_onEntry(
 	)
 {
 	SsdFaultMode* self = (SsdFaultMode*)base;
-	SsdPicture picture;
+	SsdPicture left;
+	SsdPicture right;
 
 	// TODO
-	//SsdAnimation_restartAnimation(&self->animation);
-	//picture = SsdAnimation_getFirstPicture(&self->animation);
-	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	__SsdFaultMode_refreshAnimationBasedOnLatestInfo(self);
+	SsdAnimation_restartAnimation(&self->leftAnimation);
+	SsdAnimation_restartAnimation(&self->rightAnimation);
+	left = SsdAnimation_getFirstPicture(&self->leftAnimation);
+	right = SsdAnimation_getFirstPicture(&self->rightAnimation);
+	SsdDriverWrapper_display(self->ssdDriver, right, left);
 }
 
 //-------------------------------------------------------------------
@@ -2071,11 +2322,18 @@ void SsdFaultMode_onTick(
 	)
 {
 	SsdFaultMode* self = (SsdFaultMode*)base;
-	SsdPicture picture;
+	SsdPicture left;
+	SsdPicture right;
 	Bool isFinished = FALSE;
 
-	//picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
-	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	left = SsdAnimation_getPicture(&self->leftAnimation, elapsedTimeMillisec, &isFinished);
+	right = SsdAnimation_getPicture(&self->rightAnimation, elapsedTimeMillisec, &isFinished);
+	SsdDriverWrapper_display(self->ssdDriver, left, right);
+
+	if(isFinished)
+	{
+		__SsdFaultMode_refreshAnimationBasedOnLatestInfo(self);
+	}
 }
 
 //-------------------------------------------------------------------
@@ -2093,11 +2351,14 @@ static void __SsdFaultMode_notifyFaultLogUpdated(
 {
 	SsdFaultMode* self = (SsdFaultMode*)context;
 
-	// TODO
-	/*
-	faultLogWather.getFaultLog()
-	self.updateAnimation(faultLog)
-	if(numofFaultLog == 0)
+	FaultLogWatcher_readSsdStaticFramesOfFaultLog(
+		self->faultLogWatcher,
+		self->backSideLeftFrames,
+		self->backSideRightFrames,
+		&self->numofBackSideFrames
+		);
+	self->isBackSideUpdated = TRUE;
+	if(self->numofBackSideFrames == 0)
 	{
 		SsdModeStateMachine_onEvent(self->stateMachine, eSsdModeTransitionEvent_onFaultRemoved);
 	}
@@ -2105,42 +2366,38 @@ static void __SsdFaultMode_notifyFaultLogUpdated(
 	{
 		SsdModeStateMachine_onEvent(self->stateMachine, eSsdModeTransitionEvent_onFaultOccured);
 	}
-	*/
 }
 
 //-------------------------------------------------------------------
 void SsdFaultMode_initialize(
 	SsdFaultMode* self,
 	SsdDriverWrapper* ssdDriver,
-	FaultLogWatcher* faultLogWatcher
+	FaultLogWatcher* faultLogWatcher,
+	SsdModeStateMachine* stateMachine
 	)
 {
-	int index;
-
 	SsdModeState_initializeVFuncs(
 		(SsdModeState*)self,
 		&gSsdFaultModeVFuncs
 		);
 
-	// TODO
-	//SsdStaticFrame_initialize(&self->frames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
-	//SsdStaticFrame_initialize(&self->frames[1], SEVENSEGDRIVER_BITPTN_TOP,			250);
-	//SsdStaticFrame_initialize(&self->frames[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,		250);
-	//SsdStaticFrame_initialize(&self->frames[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,	250);
-	//SsdStaticFrame_initialize(&self->frames[4], SEVENSEGDRIVER_BITPTN_BOTTOM,		250);
-	//SsdStaticFrame_initialize(&self->frames[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,		250);
-	//SsdStaticFrame_initialize(&self->frames[6], SEVENSEGDRIVER_BITPTN_DASH,			250);
-	//SsdStaticFrame_initialize(&self->frames[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
-	//SsdStaticFrame_initialize(&self->frames[8], SEVENSEGDRIVER_BITPTN_BLANK,		250);
-	//SsdAnimation_initialize(&self->animation);
-	//for(index = 0; index < SSDFAULTMODE_NUMOFFRAMES; index++)
-	//{
-	//	SsdAnimation_addFrame(&self->animation, (SsdFrame*)&self->frames[index]);
-	//}
+	SsdStaticFrame_initialize(&self->leftFrames1[0],	SEVENSEGDRIVER_BITPTN_BLANK,	1000);
+	SsdStaticFrame_initialize(&self->rightFrames1[0],	SEVENSEGDRIVER_BITPTN_BLANK,	1000);
+	SsdAnimation_initialize(&self->leftAnimation);
+	SsdAnimation_initialize(&self->rightAnimation);
+	SsdAnimation_addFrame(&self->leftAnimation, (SsdFrame*)&self->leftFrames1[0]);
+	SsdAnimation_addFrame(&self->rightAnimation, (SsdFrame*)&self->rightFrames1[0]);
 
-	// TODO
+	self->frontSideLeftFrames = self->leftFrames1;
+	self->frontSideRightFrames = self->rightFrames1;
+	self->backSideLeftFrames = self->leftFrames2;
+	self->backSideRightFrames = self->rightFrames2;
+	self->numofBackSideFrames = 0;
+	self->isBackSideUpdated = FALSE;
+
 	self->ssdDriver = ssdDriver;
 	self->faultLogWatcher = faultLogWatcher;
+	self->stateMachine = stateMachine;
 }
 
 //-------------------------------------------------------------------
@@ -2885,191 +3142,6 @@ void SsdRestoreMode_initialize(
 
 	self->ssdDriver = ssdDriver;
 	self->configEventMessanger = configEventMessanger;
-}
-
-//-------------------------------------------------------------------
-// SsdModeTransitionEvent
-//-------------------------------------------------------------------
-typedef enum eSsdModeTransitionEvent eSsdModeTransitionEvent;
-enum eSsdModeTransitionEvent
-{
-	eSsdModeTransitionEvent_onInitialized = 0,
-	eSsdModeTransitionEvent_onRestore,
-	eSsdModeTransitionEvent_onCriticalFault,
-	eSsdModeTransitionEvent_onFaultOccured,
-	eSsdModeTransitionEvent_onFaultRemoved,
-	eSsdModeTransitionEvent_onServiceSwitchOn,
-	eSsdModeTransitionEvent_onServiceSwitchServiceFinished,
-
-	eSsdModeTransitionEvent_numofEvents,
-};
-
-//-------------------------------------------------------------------
-// SsdModeTransition
-//-------------------------------------------------------------------
-typedef struct SsdModeTransition SsdModeTransition;
-struct SsdModeTransition
-{
-	SsdModeState* src;
-	SsdModeState* dst;
-	eSsdModeTransitionEvent event;
-};
-
-//-------------------------------------------------------------------
-void SsdModeTransition_initialize(
-	SsdModeTransition* self,
-	SsdModeState* src,
-	SsdModeState* dst,
-	eSsdModeTransitionEvent event
-	)
-{
-	self->src = src;
-	self->dst = dst;
-	self->event = event;
-}
-
-//-------------------------------------------------------------------
-Bool SsdModeTransition_canTransit(
-	SsdModeTransition* self,
-	SsdModeState* src,
-	eSsdModeTransitionEvent event
-	)
-{
-	return (self->src == src) && (self->event == event);
-}
-
-//-------------------------------------------------------------------
-SsdModeState* SsdModeTransition_getDstState(
-	SsdModeTransition* self
-	)
-{
-	return self->dst;
-}
-
-//-------------------------------------------------------------------
-// SsdModeStateMachine
-//-------------------------------------------------------------------
-#define SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS	32
-typedef struct SsdModeStateMachine SsdModeStateMachine;
-struct SsdModeStateMachine
-{
-	SsdModeState* state;
-	SsdModeTransition transitions[SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS];
-	int numofTransitions;
-};
-
-//-------------------------------------------------------------------
-static void __SsdModeStateMachine_lock(
-	SsdModeStateMachine* self
-	)
-{
-	// TODO	
-}
-
-//-------------------------------------------------------------------
-static void __SsdModeStateMachine_unlock(
-	SsdModeStateMachine* self
-	)
-{
-	// TODO	
-}
-
-//-------------------------------------------------------------------
-void SsdModeStateMachine_initialize(
-	SsdModeStateMachine* self
-	)
-{
-	self->state = NULL;
-	self->numofTransitions = 0;
-}
-
-//-------------------------------------------------------------------
-void SsdModeStateMachine_setInitialState(
-	SsdModeStateMachine* self,
-	SsdModeState* initialState
-	)
-{
-	self->state = initialState;
-}
-
-//-------------------------------------------------------------------
-Bool SsdModeStateMachine_addTransition(
-	SsdModeStateMachine* self,
-	SsdModeState* srcState,
-	SsdModeState* dstState,
-	eSsdModeTransitionEvent event
-	)
-{
-	int index;
-
-	if(self->numofTransitions == SSDMODESTATEMACHINE_MAXNUMOF_TRANSITIONS)
-	{
-		return FALSE;	// TODO: guarantee not to come here by test
-	}
-
-	SsdModeTransition_initialize(&self->transitions[self->numofTransitions], srcState, dstState, event);
-	self->numofTransitions += 1;
-	return TRUE;
-}
-
-//-------------------------------------------------------------------
-void SsdModeStateMachine_start(
-	SsdModeStateMachine* self
-	)
-{
-	SsdModeState_onEntry(self->state);
-}
-
-//-------------------------------------------------------------------
-static void __SsdModeStateMachine_transit(
-	SsdModeStateMachine* self,
-	SsdModeState* dst
-	)
-{
-	SsdModeState* src = self->state;
-
-	SsdModeState_onExit(src);
-	SsdModeState_onEntry(dst);
-
-	self->state = dst;
-}
-
-//-------------------------------------------------------------------
-void SsdModeStateMachine_onEvent(
-	SsdModeStateMachine* self,
-	eSsdModeTransitionEvent event
-	)
-{
-	int index;
-
-	__SsdModeStateMachine_lock(self);
-
-	for(index = 0; index < self->numofTransitions; index++)
-	{
-		SsdModeTransition* transition = &self->transitions[index];
-
-		if(SsdModeTransition_canTransit(transition, self->state, event))
-		{
-			SsdModeState* dst = SsdModeTransition_getDstState(transition);
-			__SsdModeStateMachine_transit(self, dst);
-			break;
-		}
-	}
-
-	__SsdModeStateMachine_unlock(self);
-}
-
-//-------------------------------------------------------------------
-void SsdModeStateMachine_onTick(
-	SsdModeStateMachine* self,
-	uint32_t elapsedTimeMillisec
-	)
-{
-	__SsdModeStateMachine_lock(self);
-
-	SsdModeState_onTick(self->state, elapsedTimeMillisec);
-
-	__SsdModeStateMachine_unlock(self);
 }
 
 //-------------------------------------------------------------------
