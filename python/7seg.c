@@ -470,11 +470,16 @@ enum e_DataLoggingEventMessangerDotPattern
 //-------------------------------------------------------------------
 typedef struct DataLoggingEventMessanger DataLoggingEventMessanger;
 
+typedef void (*DataLoggingTriggerCallback)(void* context, Bool* isTriggered);
+
 struct DataLoggingEventMessanger
 {
 	EventMessanger eventMessanger;
 	e_DataLoggingEventMessangerDotPattern left;
 	e_DataLoggingEventMessangerDotPattern right;
+
+	DataLoggingTriggerCallback triggerCallback;
+	void* triggerCallbackContext;
 };
 
 //-------------------------------------------------------------------
@@ -544,6 +549,26 @@ void DataLoggingEventMessanger_getDotPattern(
 	*left = self->left;
 	*right = self->right;
 	__DataLoggingEventMessanger_unlock(self);
+}
+
+//-------------------------------------------------------------------
+void DataLoggingEventMessanger_registerTriggerCallback(
+	DataLoggingEventMessanger* self,
+	DataLoggingTriggerCallback triggerCallback,
+	void* triggerCallbackContext
+	)
+{
+	self->triggerCallback = triggerCallback;
+	self->triggerCallbackContext = triggerCallbackContext;
+}
+
+//-------------------------------------------------------------------
+void DataLoggingEventMessanger_triggerDataLogging(
+	DataLoggingEventMessanger* self,
+	Bool* isTriggered	// out
+	)
+{
+	self->triggerCallback(self->triggerCallbackContext, isTriggered);
 }
 
 //-------------------------------------------------------------------
@@ -2965,11 +2990,24 @@ void __SsdServiceSwitchSignatureService_notifyConfigManagerUpdated(
 }
 
 //-------------------------------------------------------------------
+SsdServiceSwitchServiceVFuncs gSsdServiceSwitchSignatureServiceVFuncs =
+{
+	//SsdServiceSwitchSignatureService_switchToLabelMode,
+	//SsdServiceSwitchSignatureService_switchToServiceMode,
+	//SsdServiceSwitchSignatureService_getPicture,
+};
+
+//-------------------------------------------------------------------
 void SsdServiceSwitchSignatureService_initialize(
 	SsdServiceSwitchSignatureService* self,
 	ConfigEventMessanger* configEventMessanger
 	)
 {
+	SsdServiceSwitchService_initializeVFuncs(
+		(SsdServiceSwitchService*)self,
+		&gSsdServiceSwitchSignatureServiceVFuncs
+		);
+
 	__SsdServiceSwitchSignatureService_initializeForSignature(self);
 	__SsdServiceSwitchSignatureService_initializeForNoSignature(self);
 
@@ -2981,6 +3019,185 @@ void SsdServiceSwitchSignatureService_initialize(
 
 	self->isLabelMode = TRUE;
 	self->signature.valid = FALSE;
+}
+
+//-------------------------------------------------------------------
+// SsdServiceSwitchDataLoggingService
+//-------------------------------------------------------------------
+typedef struct SsdServiceSwitchDataLoggingService SsdServiceSwitchDataLoggingService;
+
+struct SsdServiceSwitchDataLoggingService
+{
+	SsdServiceSwitchService base;
+
+	Bool isLabelMode;
+	Bool isTriggered;
+
+	SsdStaticFrame frameForDataLoggingDisabled;
+	SsdAnimation animationForDataLoggingDisabled;
+
+	DataLoggingEventMessanger* dataLoggingEventMessanger;
+};
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchDataLoggingService_switchToLabelMode(
+	SsdServiceSwitchDataLoggingService* self
+	)
+{
+	self->isLabelMode = TRUE;
+}
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchDataLoggingService_switchToServiceMode(
+	SsdServiceSwitchDataLoggingService* self
+	)
+{
+	SsdAnimation_restartAnimation(&self->animationForDataLoggingDisabled);
+	DataLoggingEventMessanger_triggerDataLogging(self->dataLoggingEventMessanger, &self->isTriggered);
+	self->isLabelMode = FALSE;
+}
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchDataLoggingService_getPicture(
+	SsdServiceSwitchDataLoggingService* self,
+	uint32_t elapsedTimeMillisec,
+	SsdPicture* left,	// out
+	SsdPicture* right,	// out
+	Bool* isFinished	// out
+	)
+{
+	if(self->isLabelMode)
+	{
+		*left = SEVENSEGDRIVER_BITPTN_L;
+		*right = SEVENSEGDRIVER_BITPTN_O | SEVENSEGDRIVER_BITPTN_DOT;
+		*isFinished = FALSE;
+	}
+	else
+	{
+		if(self->isTriggered)
+		{
+			*left = SEVENSEGDRIVER_BITPTN_BLANK;
+			*right = SEVENSEGDRIVER_BITPTN_BLANK;
+			*isFinished = TRUE;
+		}
+		else
+		{
+			*left = SsdAnimation_getPicture(&self->animationForDataLoggingDisabled, elapsedTimeMillisec, isFinished);
+			*right = *left;
+		}
+	}
+}
+
+//-------------------------------------------------------------------
+SsdServiceSwitchServiceVFuncs gSsdServiceSwitchDataLoggingServiceVFuncs =
+{
+	//SsdServiceSwitchDataLoggingService_switchToLabelMode,
+	//SsdServiceSwitchDataLoggingService_switchToServiceMode,
+	//SsdServiceSwitchDataLoggingService_getPicture,
+};
+
+//-------------------------------------------------------------------
+void __SsdServiceSwitchDataLoggingService_initializeForDataLoggingDisabled(
+	SsdServiceSwitchDataLoggingService* self
+	)
+{
+	SsdStaticFrame* frame = &self->frameForDataLoggingDisabled;
+	SsdAnimation* anim = &self->animationForDataLoggingDisabled;
+
+	SsdStaticFrame_initialize(frame, SEVENSEGDRIVER_BITPTN_DASH,		300);
+
+	SsdAnimation_initialize(anim);
+	SsdAnimation_addFrame(anim, (SsdFrame*)frame);
+}
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchDataLoggingService_initialize(
+	SsdServiceSwitchDataLoggingService* self,
+	DataLoggingEventMessanger* dataLoggingEventMessanger
+	)
+{
+	SsdServiceSwitchService_initializeVFuncs(
+		(SsdServiceSwitchService*)self,
+		&gSsdServiceSwitchDataLoggingServiceVFuncs
+		);
+
+	__SsdServiceSwitchDataLoggingService_initializeForDataLoggingDisabled(self);
+
+	self->isLabelMode = TRUE;
+	self->isTriggered = FALSE;
+	self->dataLoggingEventMessanger = dataLoggingEventMessanger;
+}
+
+//-------------------------------------------------------------------
+// SsdServiceSwitchCancelService
+//-------------------------------------------------------------------
+typedef struct SsdServiceSwitchCancelService SsdServiceSwitchCancelService;
+
+struct SsdServiceSwitchCancelService
+{
+	SsdServiceSwitchService base;
+
+	Bool isLabelMode;
+};
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchCancelService_switchToLabelMode(
+	SsdServiceSwitchCancelService* self
+	)
+{
+	self->isLabelMode = TRUE;
+}
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchCancelService_switchToServiceMode(
+	SsdServiceSwitchCancelService* self
+	)
+{
+	self->isLabelMode = FALSE;
+}
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchCancelService_getPicture(
+	SsdServiceSwitchCancelService* self,
+	uint32_t elapsedTimeMillisec,
+	SsdPicture* left,	// out
+	SsdPicture* right,	// out
+	Bool* isFinished	// out
+	)
+{
+	if(self->isLabelMode)
+	{
+		*left = SEVENSEGDRIVER_BITPTN_DASH;
+		*right = *left;
+		*isFinished = FALSE;
+	}
+	else
+	{
+		*left = SEVENSEGDRIVER_BITPTN_BLANK;
+		*right = SEVENSEGDRIVER_BITPTN_BLANK;
+		*isFinished = TRUE;
+	}
+}
+
+//-------------------------------------------------------------------
+SsdServiceSwitchServiceVFuncs gSsdServiceSwitchCancelServiceVFuncs =
+{
+	//SsdServiceSwitchCancelService_switchToLabelMode,
+	//SsdServiceSwitchCancelService_switchToServiceMode,
+	//SsdServiceSwitchCancelService_getPicture,
+};
+
+//-------------------------------------------------------------------
+void SsdServiceSwitchCancelService_initialize(
+	SsdServiceSwitchCancelService* self
+	)
+{
+	SsdServiceSwitchService_initializeVFuncs(
+		(SsdServiceSwitchService*)self,
+		&gSsdServiceSwitchCancelServiceVFuncs
+		);
+
+	self->isLabelMode = TRUE;
 }
 
 //-------------------------------------------------------------------
@@ -2996,9 +3213,8 @@ struct SsdServiceSwitchMode
 
 	SsdServiceSwitchService* currentService;
 	SsdServiceSwitchSignatureService signatureService;
-	// TODO:
-	//SsdServiceSwitchDataLoggingService dataLoggingService;	// TODO: HERE!!
-	//SsdServiceSwitchCancelService cancelService;
+	SsdServiceSwitchDataLoggingService dataLoggingService;
+	SsdServiceSwitchCancelService cancelService;
 
 	SsdDriverWrapper* ssdDriver;
 };
@@ -3152,13 +3368,23 @@ void SsdServiceSwitchMode_onTick(
 	)
 {
 	SsdServiceSwitchMode* self = (SsdServiceSwitchMode*)base;
-	SsdPicture picture;
+	SsdPicture left;
+	SsdPicture right;
 	Bool isFinished = FALSE;
 
-	// TODO
-	//picture = SsdAnimation_getPicture(&self->animation, elapsedTimeMillisec, &isFinished);
+	SsdServiceSwitchService_getPicture(
+		self->currentService,
+		elapsedTimeMillisec,
+		&left,
+		&right,
+		&isFinished
+		);
+	SsdDriverWrapper_display(self->ssdDriver, left, right);
+
+	if(isFinished)
+	{
 	//// TODO: do something when isFinished
-	//SsdDriverWrapper_display(self->ssdDriver, picture, picture);
+	}
 }
 
 //-------------------------------------------------------------------
@@ -3232,7 +3458,9 @@ void __SsdServiceSwitchMode_initializeServiceSwitchHandler(
 //-------------------------------------------------------------------
 void SsdServiceSwitchMode_initialize(
 	SsdServiceSwitchMode* self,
-	SsdDriverWrapper* ssdDriver
+	SsdDriverWrapper* ssdDriver,
+	ConfigEventMessanger* configEventMessanger,
+	DataLoggingEventMessanger* dataLoggingEventMessanger
 	)
 {
 	int index;
@@ -3242,23 +3470,12 @@ void SsdServiceSwitchMode_initialize(
 		&gSsdServiceSwitchModeVFuncs
 		);
 
-	// TODO
-	//SsdStaticFrame_initialize(&self->frames[0], SEVENSEGDRIVER_BITPTN_LEFTUP,		250);
-	//SsdStaticFrame_initialize(&self->frames[1], SEVENSEGDRIVER_BITPTN_TOP,			250);
-	//SsdStaticFrame_initialize(&self->frames[2], SEVENSEGDRIVER_BITPTN_RIGHTUP,		250);
-	//SsdStaticFrame_initialize(&self->frames[3], SEVENSEGDRIVER_BITPTN_RIGHTDOWN,	250);
-	//SsdStaticFrame_initialize(&self->frames[4], SEVENSEGDRIVER_BITPTN_BOTTOM,		250);
-	//SsdStaticFrame_initialize(&self->frames[5], SEVENSEGDRIVER_BITPTN_LEFTDOWN,		250);
-	//SsdStaticFrame_initialize(&self->frames[6], SEVENSEGDRIVER_BITPTN_DASH,			250);
-	//SsdStaticFrame_initialize(&self->frames[7], SEVENSEGDRIVER_BITPTN_DOT,			250);
-	//SsdStaticFrame_initialize(&self->frames[8], SEVENSEGDRIVER_BITPTN_BLANK,		250);
-	//SsdAnimation_initialize(&self->animation);
-	//for(index = 0; index < SSDSERVICESWITCHMODE_NUMOFFRAMES; index++)
-	//{
-	//	SsdAnimation_addFrame(&self->animation, (SsdFrame*)&self->frames[index]);
-	//}
+	SsdServiceSwitchSignatureService_initialize(&self->signatureService, configEventMessanger);
+	SsdServiceSwitchDataLoggingService_initialize(&self->dataLoggingService, dataLoggingEventMessanger);
+	SsdServiceSwitchCancelService_initialize(&self->cancelService);
 
-	//self->ssdDriver = ssdDriver;
+	self->currentService = (SsdServiceSwitchService*)&self->cancelService;
+	self->ssdDriver = ssdDriver;
 }
 
 //-------------------------------------------------------------------
