@@ -1,0 +1,44 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+MyImple1	main.cpp	/^		MyImple1() : value_(0) {}$/;"	f	class:MyImple1	access:public	signature:()
+MyImple1	main.cpp	/^class MyImple1 : public MyInterface$/;"	c	file:	inherits:MyInterface
+MyImple1::MyImple1	main.cpp	/^		MyImple1() : value_(0) {}$/;"	f	class:MyImple1	access:public	signature:()
+MyImple1::get	main.cpp	/^		virtual int get()			{ return value_; }$/;"	f	class:MyImple1	access:public	signature:()
+MyImple1::set	main.cpp	/^		virtual void set(int value)	{ value_ = value; }$/;"	f	class:MyImple1	access:public	signature:(int value)
+MyImple1::value_	main.cpp	/^		int value_;$/;"	m	class:MyImple1	file:	access:private
+MyImple1::~MyImple1	main.cpp	/^		~MyImple1() {}$/;"	f	class:MyImple1	access:public	signature:()
+MyImple2	main.cpp	/^		MyImple2() : value_(0) {}$/;"	f	class:MyImple2	access:public	signature:()
+MyImple2	main.cpp	/^class MyImple2 : public MyInterface$/;"	c	file:	inherits:MyInterface
+MyImple2::MyImple2	main.cpp	/^		MyImple2() : value_(0) {}$/;"	f	class:MyImple2	access:public	signature:()
+MyImple2::get	main.cpp	/^		virtual int get()			{ return value_; }$/;"	f	class:MyImple2	access:public	signature:()
+MyImple2::set	main.cpp	/^		virtual void set(int value)	{ value_ = 2 * value; }$/;"	f	class:MyImple2	access:public	signature:(int value)
+MyImple2::value_	main.cpp	/^		int value_;$/;"	m	class:MyImple2	file:	access:private
+MyImple2::~MyImple2	main.cpp	/^		~MyImple2() {}$/;"	f	class:MyImple2	access:public	signature:()
+MyInterface	main.cpp	/^class MyInterface$/;"	c	file:
+MyInterface::get	main.cpp	/^		virtual int get();$/;"	p	class:MyInterface	file:	access:public	signature:()
+MyInterface::get	main.cpp	/^int MyInterface::get()$/;"	f	class:MyInterface	signature:()
+MyInterface::set	main.cpp	/^		virtual void set(int value);$/;"	p	class:MyInterface	file:	access:public	signature:(int value)
+MyInterface::set	main.cpp	/^void MyInterface::set(int value)$/;"	f	class:MyInterface	signature:(int value)
+MyInterface::~MyInterface	main.cpp	/^		virtual ~MyInterface() = 0;$/;"	p	class:MyInterface	file:	access:public	signature:()
+MyInterface::~MyInterface	main.cpp	/^MyInterface::~MyInterface()$/;"	f	class:MyInterface	signature:()
+get	main.cpp	/^		virtual int get()			{ return value_; }$/;"	f	class:MyImple1	access:public	signature:()
+get	main.cpp	/^		virtual int get()			{ return value_; }$/;"	f	class:MyImple2	access:public	signature:()
+get	main.cpp	/^		virtual int get();$/;"	p	class:MyInterface	file:	access:public	signature:()
+get	main.cpp	/^int MyInterface::get()$/;"	f	class:MyInterface	signature:()
+main	main.cpp	/^int main(void)$/;"	f	signature:(void)
+n	GRTAGS	/^/;"	v
+n	GRTAGS	/^b1/;"	v
+set	main.cpp	/^		virtual void set(int value)	{ value_ = 2 * value; }$/;"	f	class:MyImple2	access:public	signature:(int value)
+set	main.cpp	/^		virtual void set(int value)	{ value_ = value; }$/;"	f	class:MyImple1	access:public	signature:(int value)
+set	main.cpp	/^		virtual void set(int value);$/;"	p	class:MyInterface	file:	access:public	signature:(int value)
+set	main.cpp	/^void MyInterface::set(int value)$/;"	f	class:MyInterface	signature:(int value)
+value_	main.cpp	/^		int value_;$/;"	m	class:MyImple1	file:	access:private
+value_	main.cpp	/^		int value_;$/;"	m	class:MyImple2	file:	access:private
+~MyImple1	main.cpp	/^		~MyImple1() {}$/;"	f	class:MyImple1	access:public	signature:()
+~MyImple2	main.cpp	/^		~MyImple2() {}$/;"	f	class:MyImple2	access:public	signature:()
+~MyInterface	main.cpp	/^		virtual ~MyInterface() = 0;$/;"	p	class:MyInterface	file:	access:public	signature:()
+~MyInterface	main.cpp	/^MyInterface::~MyInterface()$/;"	f	class:MyInterface	signature:()
