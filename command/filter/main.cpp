@@ -1,4 +1,4 @@
-//#include <iostream>
+#include <iostream>
 #include <vector>
 #include <fstream>
 #include <boost/foreach.hpp>
