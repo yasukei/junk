@@ -9,4 +9,4 @@ clean:
 rebuild: clean all
 
 run: all
-	./$(TARGET)
+	time ./$(TARGET)

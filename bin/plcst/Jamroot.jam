@@ -1,4 +1,4 @@
 using gcc : : : <cxxflags>-std=c++11 ;
 
-exe main : main.cpp ;
+exe main : main.cpp parser.cpp ;
 
