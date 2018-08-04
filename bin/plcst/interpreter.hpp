@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "parser.hpp"
+#include "iec.hpp"
 
 //-------------------------------------------------------------------
 // Interpreter
@@ -9,11 +9,12 @@
 class Interpreter
 {
 public:
-	Interpreter() {};
-	~Interpreter() {};
+	Interpreter();
+	~Interpreter();
 
 	void interpret(std::string str);
-	const client::program& getProgram();
+	iec::Program* getProgram();
+
 private:
-	client::program program_;
+	iec::Program* program_;
 };

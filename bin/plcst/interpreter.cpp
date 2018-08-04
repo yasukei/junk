@@ -75,6 +75,14 @@ bool adder(Iterator first, Iterator last, double& n)
 
 #include <boost/fusion/include/adapt_struct.hpp>
 
+namespace client
+{
+	struct program
+	{
+		std::string name;
+	};
+}
+
 BOOST_FUSION_ADAPT_STRUCT(
 	client::program,
 	(std::string, name)
@@ -136,6 +144,19 @@ namespace client
 //-------------------------------------------------------------------
 // Interpreter
 //-------------------------------------------------------------------
+Interpreter::Interpreter()
+{
+}
+
+//-------------------------------------------------------------------
+Interpreter::~Interpreter()
+{
+	if(program_ != nullptr)
+	{
+		delete program_;
+	}
+}
+
 void Interpreter::interpret(
 	std::string str
 	)
@@ -148,11 +169,15 @@ void Interpreter::interpret(
 	std::string::const_iterator start = str.begin();
 	std::string::const_iterator end = str.end();
 
-	bool r = phrase_parse(start, end, g, boost::spirit::ascii::space, program_);
+	client::program prg;
+
+	bool r = phrase_parse(start, end, g, boost::spirit::ascii::space, prg);
 	if(r && start == end)
 	{
 		//std::cout << "succeeded\n";
-		std::cout << boost::fusion::as_vector(program_) << std::endl;
+		std::cout << boost::fusion::as_vector(prg) << std::endl;
+
+		program_ = new iec::Program(prg.name);
 	}
 	else
 	{
@@ -160,7 +185,7 @@ void Interpreter::interpret(
 	}
 }
 
-const client::program& Interpreter::getProgram()
+iec::Program* Interpreter::getProgram()
 {
 	return program_;
 }

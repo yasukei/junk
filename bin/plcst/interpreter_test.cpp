@@ -2,11 +2,14 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "interpreter.hpp"
-#include "parser.hpp"
+#include "iec.hpp"
 
 #define cPROGRAM		("PROGRAM")
 #define cEND_PROGRAM	("END_PROGRAM")
 
+//-------------------------------------------------------------------
+// ConcatString
+//-------------------------------------------------------------------
 class ConcatString
 {
 public:
@@ -31,6 +34,9 @@ private:
 	std::string delimiter_;
 };
 
+//-------------------------------------------------------------------
+// TEST
+//-------------------------------------------------------------------
 TEST(aaa, bbb)
 {
 	Interpreter itp;
@@ -45,7 +51,8 @@ TEST(aaa, bbb)
 	//std::string str("PROGRAM a1a VAR x : INT ; VAR_END END_PROGRAM");
 
 	itp.interpret(str.getString());
-	const client::program p(itp.getProgram());
-	EXPECT_EQ(program_name, p.name);
+	iec::Program* p(itp.getProgram());
+
+	EXPECT_EQ(program_name, p->getName());
 }
 
