@@ -16,7 +16,7 @@ namespace qi = boost::spirit::qi;
 namespace ascii = boost::spirit::ascii;
 namespace phoenix = boost::phoenix;
 
-void print_double(double d)
+static void print_double(double d)
 {
 	std::cout << "number: [" << d << "]\n";
 }

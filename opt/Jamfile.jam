@@ -1,0 +1,16 @@
+
+lib gtestgmock
+	:
+	googletest/googlemock/src/gmock_main.cc
+	googletest/googlemock/src/gmock-all.cc
+	googletest/googletest/src/gtest-all.cc
+	:
+	<include>googletest/googletest/include
+	<include>googletest/googletest/
+	<include>googletest/googlemock/include
+	<include>googletest/googlemock/
+	<link>static
+	:
+	:
+	;
+
