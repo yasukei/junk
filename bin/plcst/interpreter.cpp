@@ -75,25 +75,102 @@ bool adder(Iterator first, Iterator last, double& n)
 
 #include <boost/fusion/include/adapt_struct.hpp>
 
-namespace client
-{
-	struct program
-	{
-		std::string name;
-	};
-}
+BOOST_FUSION_ADAPT_STRUCT(
+	client::VariableDecl,
+	(std::string, var_name),
+	(std::string, type_name)
+)
 
 BOOST_FUSION_ADAPT_STRUCT(
-	client::program,
+	client::Program,
 	(std::string, name)
 )
 
 namespace client
 {
+	using qi::lexeme;
+	using qi::on_error;
+	using qi::fail;
+	using ascii::alpha;
+	using ascii::alnum;
+	using phoenix::val;
+	using phoenix::at_c;
+	using phoenix::construct;
+	using namespace qi::labels;
+
+	typedef std::string::const_iterator iterator_type;
+
+#define id_grammar	id %= lexeme[+(alpha) > *(alnum)]
+#define id_rule		qi::rule<Iterator, std::string(), ascii::space_type> id
+
+	//-------------------------------------------------------------------
+	// IdParser
+	//-------------------------------------------------------------------
 	template <typename Iterator>
-	struct program_parser : qi::grammar<Iterator, program(), ascii::space_type>
+	struct IdParser : qi::grammar<Iterator, std::string(), ascii::space_type>
 	{
-		program_parser() : program_parser::base_type(start)
+		IdParser() : IdParser::base_type(id)
+		{
+			id_grammar;
+		}
+
+		id_rule;
+	};
+
+	//-------------------------------------------------------------------
+	bool IdParser_parse(std::string input_str, std::string& parsed_output)
+	{
+		client::IdParser<iterator_type> grammar;
+		iterator_type start(input_str.begin());
+		iterator_type end(input_str.end());
+
+		bool result(phrase_parse(start, end, grammar, boost::spirit::ascii::space, parsed_output));
+		return result && start == end;
+	}
+
+	//-------------------------------------------------------------------
+	// VariableDeclParser
+	//-------------------------------------------------------------------
+	template <typename Iterator>
+	struct VariableDeclParser : qi::grammar<Iterator, VariableDecl(), ascii::space_type>
+	{
+		VariableDeclParser() : VariableDeclParser::base_type(variable_decl)
+		{
+			id_grammar;
+			variable_decl =
+							"VAR"
+						>> id			[at_c<0>(_val) = _1]
+						>> ":"
+						>> id			[at_c<1>(_val) = _1]
+						>> "END_VAR"
+						;
+		}
+
+		id_rule;
+		qi::rule<Iterator, VariableDecl(), ascii::space_type> variable_decl;
+	};
+
+	//-------------------------------------------------------------------
+	bool VariableDeclParser_parse(std::string input_str, client::VariableDecl& parsed_output)
+	{
+		client::VariableDeclParser<iterator_type> grammar;
+		iterator_type start(input_str.begin());
+		iterator_type end(input_str.end());
+
+		bool result(phrase_parse(start, end, grammar, boost::spirit::ascii::space, parsed_output));
+		return result && start == end;
+	}
+
+
+	//-------------------------------------------------------------------
+	// ProgramParser
+	//-------------------------------------------------------------------
+	template <typename Iterator>
+	//struct program_parser : qi::grammar<Iterator, Program(), ascii::space_type>
+	struct program_parser : qi::grammar<Iterator, std::string(), ascii::space_type>
+	{
+		//program_parser() : program_parser::base_type(start)
+		program_parser() : program_parser::base_type(id)
 		{
 			using qi::lit;
 			using qi::int_;
@@ -113,31 +190,39 @@ namespace client
 			using phoenix::construct;
 			using phoenix::val;
 
-			start %=
-				lit("PROGRAM")
-				//>> *(char_)
-				//>> lexeme["aaa"]						// success
-				//>> lexeme[char_ >> char_ >> char_]	// success
-				> lexeme[(alpha) > *(alnum)]	// success
-				> lexeme["END_PROGRAM"]
-				;
+			id %= lexeme[+(alpha) > *(alnum)];
+
+			//var_decl %= lit("VAR") > lexeme["var1"] > lexeme[":"] > lexeme["BOOL"] > lexeme["END_VAR"];
+			//start %=
+			//	lit("PROGRAM")
+			//	//>> *(char_)
+			//	//>> lexeme["aaa"]						// success
+			//	//>> lexeme[char_ >> char_ >> char_]	// success
+			//	> lexeme[(alpha) > *(alnum)]	// success
+			//	> lexeme[*(var_decl)]
+			//	> lexeme["END_PROGRAM"]
+			//	;
 
 			//start.name("start");
 
-			on_error<fail>
-				(
-				 start,
-				 std::cout
-				 	<< val("Error! Expecting ")
-					<< _4
-					<< val(" here: \"")
-					<< construct<std::string>(_3, _2)
-					<< val("\"")
-					<< std::endl
-				);
+			//on_error<fail>
+			//	(
+			//	 //start,
+			//	 id,
+			//	 std::cout
+			//	 	<< val("Error! Expecting ")
+			//		<< _4
+			//		<< val(" here: \"")
+			//		<< construct<std::string>(_3, _2)
+			//		<< val("\"")
+			//		<< std::endl
+			//	);
 		}
 
-		qi::rule<Iterator, program(), ascii::space_type> start;
+		qi::rule<Iterator, std::string(), ascii::space_type> id;
+
+		//qi::rule<Iterator, Variable(), ascii::space_type> var_decl;
+		//qi::rule<Iterator, Program(), ascii::space_type> start;
 	};
 }
 
@@ -169,15 +254,18 @@ void Interpreter::interpret(
 	std::string::const_iterator start = str.begin();
 	std::string::const_iterator end = str.end();
 
-	client::program prg;
+	client::Program prg;
+	std::string s;
 
-	bool r = phrase_parse(start, end, g, boost::spirit::ascii::space, prg);
+	bool r = phrase_parse(start, end, g, boost::spirit::ascii::space, s);
 	if(r && start == end)
 	{
 		//std::cout << "succeeded\n";
-		std::cout << boost::fusion::as_vector(prg) << std::endl;
+		//std::cout << boost::fusion::as_vector(s) << std::endl;
+		std::cout << s << std::endl;
 
-		program_ = new iec::Program(prg.name);
+		//program_ = new iec::Program(s.name);
+		program_ = new iec::Program(s);
 	}
 	else
 	{

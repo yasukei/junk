@@ -47,6 +47,8 @@ public:
 
 	const std::string& getName() { return name_; }
 
+	Variable* getVariable() { return variables_.front(); }
+
 protected:
 	std::string name_;
 	std::vector<Variable*> variables_;
