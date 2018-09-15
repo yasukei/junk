@@ -82,6 +82,11 @@ BOOST_FUSION_ADAPT_STRUCT(
 )
 
 BOOST_FUSION_ADAPT_STRUCT(
+	client::VariablesDecl,
+	(std::set<client::VariableDecl>, vars_decl)
+)
+
+BOOST_FUSION_ADAPT_STRUCT(
 	client::Program,
 	(std::string, name)
 )
@@ -95,6 +100,8 @@ namespace client
 	using ascii::alnum;
 	using phoenix::val;
 	using phoenix::at_c;
+	using phoenix::push_back;
+	using phoenix::insert;
 	using phoenix::construct;
 	using namespace qi::labels;
 
@@ -102,6 +109,13 @@ namespace client
 
 #define id_grammar	id %= lexeme[+(alpha) > *(alnum)]
 #define id_rule		qi::rule<Iterator, std::string(), ascii::space_type> id
+#define variable_decl_grammar										\
+			variable_decl =											\
+							id			[at_c<0>(_val) = _1]		\
+						>> ":"										\
+						>> id			[at_c<1>(_val) = _1]		
+#define variable_decl_rule	qi::rule<Iterator, VariableDecl(), ascii::space_type> variable_decl
+
 
 	//-------------------------------------------------------------------
 	// IdParser
@@ -137,17 +151,11 @@ namespace client
 		VariableDeclParser() : VariableDeclParser::base_type(variable_decl)
 		{
 			id_grammar;
-			variable_decl =
-							"VAR"
-						>> id			[at_c<0>(_val) = _1]
-						>> ":"
-						>> id			[at_c<1>(_val) = _1]
-						>> "END_VAR"
-						;
+			variable_decl_grammar;
 		}
 
 		id_rule;
-		qi::rule<Iterator, VariableDecl(), ascii::space_type> variable_decl;
+		variable_decl_rule;
 	};
 
 	//-------------------------------------------------------------------
@@ -159,6 +167,66 @@ namespace client
 
 		bool result(phrase_parse(start, end, grammar, boost::spirit::ascii::space, parsed_output));
 		return result && start == end;
+	}
+
+	//-------------------------------------------------------------------
+	// VariablesDeclParser
+	//-------------------------------------------------------------------
+	template <typename Iterator>
+	struct VariablesDeclParser : qi::grammar<Iterator, VariablesDecl(), ascii::space_type>
+	{
+		VariablesDeclParser() : VariablesDeclParser::base_type(variables_decl)
+		{
+			id_grammar;
+			variable_decl_grammar;
+			variables_decl =
+								"VAR"
+							>> variable_decl	[insert(at_c<0>(_val), _1)]
+							//>> *variable_decl	[insert(at_c<0>(_val), _1)]
+							>> "END_VAR"								
+							;
+
+			id.name("id");
+			variable_decl.name("variable_decl");
+			variables_decl.name("variables_decl");
+
+			on_error<fail>
+			(
+			 variables_decl,
+			 //variable_decl,
+			 std::cout
+				<< val("Error! Expecting ")
+				<< _4
+				<< val(" here: \"")
+				<< construct<std::string>(_3, _2)
+				<< val("\"")
+				<< std::endl
+			);
+		}
+
+		id_rule;
+		variable_decl_rule;
+		qi::rule<Iterator, VariablesDecl(), ascii::space_type> variables_decl;
+	};
+
+	//-------------------------------------------------------------------
+	bool VariablesDeclParser_parse(std::string input_str, client::VariablesDecl& parsed_output)
+	{
+		client::VariablesDeclParser<iterator_type> grammar;
+		iterator_type start(input_str.begin());
+		iterator_type end(input_str.end());
+
+		bool result(phrase_parse(start, end, grammar, boost::spirit::ascii::space, parsed_output));
+		//return result && start == end;
+		if( result && start == end )
+		{
+			return true;
+		}
+		else
+		{
+			std::cout << "fail!!!\n";
+			return false;
+		}
 	}
 
 

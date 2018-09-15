@@ -20,12 +20,12 @@ using gcc
 	<cxxflags>-std=c++11
 	;
 
-exe main
-	:
-	main.cpp
-	interpreter.cpp
-	parser.cpp
-	;
+#exe main
+#	:
+#	main.cpp
+#	interpreter.cpp
+#	parser.cpp
+#	;
 
 unit-test interpreter_test
 	:

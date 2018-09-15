@@ -122,12 +122,51 @@ INSTANTIATE_TEST_CASE_P(
 	testing::Values(
 		//			input,				
 		//									expected_result,	expected_var_name,		expected_type_name
-		make_tuple(	std::string("VAR var : type END_VAR"),	
+		make_tuple(	std::string("var : type"),	
 											bool(true),			std::string("var"),		std::string("type")		),
 
-		make_tuple(	std::string("VAR a : b END_VAR"),	
+		make_tuple(	std::string("a : b"),	
 											bool(true),			std::string("a"),		std::string("b")		)
 	)
+);
+
+//-------------------------------------------------------------------
+// VariablesDeclParser_test
+//-------------------------------------------------------------------
+class VariablesDeclParser_test : public ::testing::TestWithParam<
+			std::tuple< std::string, bool, std::set<client::VariableDecl> >
+		>
+{ 
+};
+
+//-------------------------------------------------------------------
+TEST_P(VariablesDeclParser_test, _)
+{
+	auto input(std::get<0>(GetParam()));
+	auto expected_result(std::get<1>(GetParam()));
+	auto expected_set(std::get<2>(GetParam()));
+	client::VariablesDecl output;
+
+	bool actual_result(client::VariablesDeclParser_parse(input, output));
+
+	EXPECT_EQ(expected_result, actual_result);
+	if(actual_result)
+	{
+		EXPECT_EQ(expected_set.size(), output.vars_decl.size());
+		EXPECT_TRUE(expected_set == output.vars_decl);
+	}
+}
+
+//-------------------------------------------------------------------
+INSTANTIATE_TEST_CASE_P(
+	parameterized_instance,
+	VariablesDeclParser_test,
+	testing::Values(
+		//			input,				
+		//									expected_result,	expected_set,
+		make_tuple(	std::string("VAR var : type VAR_END"),	
+											bool(true),			std::set<client::VariableDecl>({client::VariableDecl("var", "type")})	)
+		)
 );
 
 //	const std::string program_name = R"END(
