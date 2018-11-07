@@ -1,0 +1,13 @@
+[ ] prepare Jenkins
+[ ] install Jenkins plugins by cli
+[ ] create Jenkins Job by cli
+[ ] backup and restore Jenkins data (this is not necessary? -> configuration is not necessary but build results are necessary)
+[ ] checkout source code
+[ ] build source code
+[ ] test source code
+[ ] execute static analysis (ex. lint, cppcheck)
+[ ] show test coverage
+[ ] email results and errors
+
+[ ] if possible, make above things ansible modules
+[ ] combine with kubernates
