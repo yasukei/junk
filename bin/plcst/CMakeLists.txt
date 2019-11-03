@@ -39,9 +39,11 @@ add_compile_options(-Wall -Wextra -O0 -g --coverage)
 
 add_executable(
 	interpreter_test
-	interpreter_test.cpp
-   	interpreter.cpp
+	calculator_test.cpp
+   	calculator.cpp
 	)
+#interpreter_test.cpp
+#interpreter.cpp
 
 target_link_libraries(
 	interpreter_test
