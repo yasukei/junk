@@ -7,7 +7,7 @@ from Tkinter import *
 
 class Application(Frame):
     def say_hi(self):
-        print "hi threre, everyone!"
+        print("hi threre, everyone!")
 
     def createWidgets(self):
         self.QUIT = Button(self)
