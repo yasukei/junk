@@ -1,34 +1,30 @@
 #!/usr/bin/env python
 # -*- config: utf-8 -*-
 
-# refer: http://docs.python.jp/2/library/tkinter.html
+# refer: https://docs.python.org/3/library/tkinter.html
 
-from Tkinter import *
+import tkinter as tk
 
-class Application(Frame):
-    def say_hi(self):
-        print("hi threre, everyone!")
-
-    def createWidgets(self):
-        self.QUIT = Button(self)
-        self.QUIT['text'] = 'QUIT'
-        self.QUIT['fg'] = 'red'
-        self.QUIT['command'] = self.quit
-
-        self.QUIT.pack({'side': 'left'})
-
-        self.hi_there = Button(self)
-        self.hi_there['text'] = 'Hello'
-        self.hi_there['command'] = self.say_hi
-
-        self.hi_there.pack({'side' : 'left'})
-
+class Application(tk.Frame):
     def __init__(self, master=None):
-        Frame.__init__(self, master)
+        super().__init__(master)
+        self.master = master
         self.pack()
-        self.createWidgets()
+        self.create_widgets()
 
-root = Tk()
+    def create_widgets(self):
+        self.hi_there = tk.Button(self)
+        self.hi_there["text"] = "Hello World\n(click me)"
+        self.hi_there["command"] = self.say_hi
+        self.hi_there.pack(side="top")
+
+        self.quit = tk.Button(self, text="QUIT", fg="red",
+                              command=self.master.destroy)
+        self.quit.pack(side="bottom")
+
+    def say_hi(self):
+        print("hi there, everyone!")
+
+root = tk.Tk()
 app = Application(master=root)
 app.mainloop()
-root.destroy()
