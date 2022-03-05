@@ -3,8 +3,10 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <unordered_map>
 #include <tuple>
 #include <algorithm>
+#include <functional>
 
 // A book of Cracking the Coding Interview
 
@@ -271,9 +273,306 @@ std::list<int> __addByList(std::list<int> ls1, std::list<int> ls2)
 	return answer;
 }
 
+// Problem 3.3
+class SetOfStacks
+{
+public:
+	void push(int value);
+	int pop(void);
+	int popAt(int index);
+
+private:
+	std::unordered_map<uint32_t, std::list<int>> setofStacks;
+	uint32_t currentIndex;
+
+#define STACK_MAXSIZE 32
+};
+
+void SetOfStacks::push(int value)
+{
+	if(setofStacks[currentIndex].size() == STACK_MAXSIZE)
+	{
+		currentIndex++;
+	}
+
+	setofStacks[currentIndex].push_back(value);
+}
+
+int SetOfStacks::pop(void)
+{
+	if(setofStacks[currentIndex].size() == 0)
+	{
+		return -1;
+	}
+
+	int ret = setofStacks[currentIndex].back();
+	setofStacks[currentIndex].pop_back();
+
+	while(setofStacks[currentIndex].size() == 0 && currentIndex > 0)
+	{
+		currentIndex--;
+	}
+	return ret;
+}
+
+int SetOfStacks::popAt(int index)
+{
+	if(setofStacks[index].size() == 0)
+	{
+		return -1;
+	}
+
+	int ret = setofStacks[index].back();
+	setofStacks[index].pop_back();
+
+	while(setofStacks[currentIndex].size() == 0 && currentIndex > 0)
+	{
+		currentIndex--;
+	}
+	return ret;
+}
+
+// Problem 3.4
+void __printHanoiSub(std::list<int> list)
+{
+	for(int i = 0; i < list.size(); i++)
+	{
+		printf("%d ", list.front());
+		list.push_back(list.front());
+		list.pop_front();
+	}
+}
+
+void __solveHanoiSub(int n, std::list<int>& first, std::list<int>& second, std::list<int>& third, std::function<void(void)> printFunc)
+{
+	if(n == 1)
+	{
+		third.push_back(first.back());
+		first.pop_back();
+		printFunc();
+	}
+	else
+	{
+		__solveHanoiSub(n - 1, first, third, second, printFunc);
+		third.push_back(first.back());
+		first.pop_back();
+		printFunc();
+		__solveHanoiSub(n - 1, second, first, third, printFunc);
+	}
+}
+
+void __solveHanoi(void)
+{
+	std::list<int> first, second, third;
+
+	auto printFunc = [&first, &second, &third]()
+	{
+		printf("1st: "); __printHanoiSub(first);  printf("\n");
+		printf("2nd: "); __printHanoiSub(second); printf("\n");
+		printf("3rd: "); __printHanoiSub(third);  printf("\n");
+		printf("\n");
+	};
+
+	first.push_back(4);
+	first.push_back(3);
+	first.push_back(2);
+	first.push_back(1);
+
+	printFunc();
+	__solveHanoiSub(first.size(), first, second, third, printFunc);
+}
+
+// Problem 3.5
+class MyQueue
+{
+public:
+	void enque(int value);
+	int deque(void);
+
+private:
+	std::list<int> stack1, stack2;
+};
+
+void MyQueue::enque(int value)
+{
+	stack1.push_back(value);
+}
+
+int MyQueue::deque(void)
+{
+	if(stack1.size() == 0)
+	{
+		return -1;
+	}
+
+	while(stack1.size() != 0)
+	{
+		stack2.push_back(stack1.back());
+		stack1.pop_back();
+	}
+
+	int ret = stack2.back();
+	stack2.pop_back();
+
+	while(stack2.size() != 0)
+	{
+		stack1.push_back(stack2.back());
+		stack2.pop_back();
+	}
+
+	return ret;
+}
+
+// Problem 3.6
+void __sortStackSub(std::list<int>& stack1, std::list<int>& stack2, std::list<int>& stack3, std::function<void()> printStack)
+{
+	if(!stack1.empty())
+	{
+		stack3.push_back(stack1.back());
+		stack1.pop_back();
+		printStack();
+
+		while(!stack1.empty())
+		{
+			if(stack3.back() > stack1.back())
+			{
+				stack2.push_back(stack3.back());
+				stack3.pop_back();
+				printStack();
+
+				stack3.push_back(stack1.back());
+				stack1.pop_back();
+				printStack();
+			}
+			else
+			{
+				stack2.push_back(stack1.back());
+				stack1.pop_back();
+				printStack();
+			}
+		}
+		__sortStackSub(stack2, stack1, stack3, printStack);
+	}
+}
+
+void __printStack(std::list<int> stack)
+{
+	for(int i = 0; i < stack.size(); i++)
+	{
+		printf("%d ", stack.front());
+		stack.push_back(stack.front());
+		stack.pop_front();
+	}
+}
+
+void __sortStack(void)
+{
+	std::list<int> stack1, stack2, stack3;
+
+	auto printStack = [&stack1, &stack2, &stack3]()
+	{
+		printf("stack1: "); __printStack(stack1);  printf("\n");
+		printf("stack2: "); __printStack(stack2); printf("\n");
+		printf("stack3: "); __printStack(stack3);  printf("\n");
+		printf("\n");
+	};
+
+	stack1.push_back(1);
+	stack1.push_back(2);
+	stack1.push_back(3);
+	printStack();
+
+	__sortStackSub(stack1, stack2, stack3, printStack);
+	while(!stack3.empty())
+	{
+		stack1.push_back(stack3.back());
+		stack3.pop_back();
+		printStack();
+	}
+}
+
+// Problem 3.7
+class AnimalShelter
+{
+	struct Animal
+	{
+		enum
+		{
+			Dog,
+			Cat,
+		};
+	};
+public:
+	void enque(int value);
+	int dequeAny(void);
+	int dequeDog(void);
+	int dequeCat(void);
+
+private:
+	std::list<int> _queue;
+};
+
+void AnimalShelter::enque(int animal)
+{
+	_queue.push_back(animal);
+}
+
+int AnimalShelter::dequeAny(void)
+{
+	int ret = _queue.front();
+	_queue.pop_front();
+	return ret;
+}
+
+int AnimalShelter::dequeDog(void)
+{
+	int num = 0;
+
+	while(_queue.front() != Animal::Dog)
+	{
+		int temp = _queue.front();
+		_queue.pop_front();
+		_queue.push_back(temp);
+		num++;
+	}
+
+	int ret = _queue.front();
+	_queue.pop_front();
+	for(int i = 0; i < num; i++)
+	{
+		int temp = _queue.back();
+		_queue.pop_back();
+		_queue.push_front(temp);
+	}
+	return ret;
+}
+
+int AnimalShelter::dequeCat(void)
+{
+	int num = 0;
+
+	while(_queue.front() != Animal::Cat)
+	{
+		int temp = _queue.front();
+		_queue.pop_front();
+		_queue.push_back(temp);
+		num++;
+	}
+
+	int ret = _queue.front();
+	_queue.pop_front();
+	for(int i = 0; i < num; i++)
+	{
+		int temp = _queue.back();
+		_queue.pop_back();
+		_queue.push_front(temp);
+	}
+	return ret;
+}
+
 int main(void)
 {
-	int no = 205;
+	int no = 306;
 
 	switch(no)
 	{
@@ -385,6 +684,16 @@ int main(void)
 				std::list<int> ls2 = {1};
 				std::list<int> ls3 = __addByList(ls1, ls2);
 				__printList(ls3);
+			}
+			break;
+		case 304:
+			{
+				__solveHanoi();
+			}
+			break;
+		case 306:
+			{
+				__sortStack();
 			}
 			break;
 		default:
