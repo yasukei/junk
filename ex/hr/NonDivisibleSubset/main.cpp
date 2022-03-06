@@ -22,22 +22,29 @@ bool isNotDivisibleSubset(const std::vector<int>& subset, int k)
     return true;
 }
 
-void makeSubset(const std::vector<int>& motherSet, int motherSetSize, int depth, std::vector<int>& subset, std::vector<std::vector<int>>& subsetQueue)
+bool makeSubset(const std::vector<int>& motherSet, int motherSetSize, int depth, std::vector<int>& subset, std::vector<std::vector<int>>& subsetQueue, int k)
 {
-	for(int i = motherSetSize - 1; i >= 0; i--)
+	bool found = false;
+
+	for(int i = motherSetSize - 1; !found && i >= 0; i--)
 	{
 		subset.push_back(motherSet[i]);
 
 		if(depth == 1)
 		{
-			subsetQueue.push_back(subset);
+			found = isNotDivisibleSubset(subset, k);
+			if(found)
+			{
+				subsetQueue.push_back(subset);
+			}
 		}
 		else
 		{
-			makeSubset(motherSet, i, depth - 1, subset, subsetQueue);
+			found = makeSubset(motherSet, i, depth - 1, subset, subsetQueue, k);
 		}
 		subset.pop_back();
 	}
+	return found;
 }
 
 void printSubset(const std::vector<int>& subset)
@@ -68,18 +75,12 @@ int binarySearch(int searchLeft, int searchRight, const std::vector<int>& mother
 	PRINTF("left, index, right: %d, %d, %d\n", searchLeft, searchIndex, searchRight);
 
 	subsetQueue.clear();
-	makeSubset(motherSet, motherSet.size(), searchIndex, subset, subsetQueue);
+	bool found = makeSubset(motherSet, motherSet.size(), searchIndex, subset, subsetQueue, k);
 	//printSubsetQueue(subsetQueue);
 
-	bool found = false;
-	for(int i = 0; i < subsetQueue.size(); i++)
+	if(found)
 	{
-		if(isNotDivisibleSubset(subsetQueue[i], k))
-		{
-			found = true;
-			result1 = subsetQueue[i].size();
-			break;
-		}
+		result1 = subsetQueue[0].size();
 	}
 
 	int result2 = 0;
@@ -114,7 +115,15 @@ int main(void)
 	std::vector<int> subset;
 	std::vector<std::vector<int>> subsetQueue;
 
-    int answer = binarySearch(2, S.size(), S, subset, subsetQueue, k);
+    int answer;
+   	if(k == 1)
+	{
+		answer = 1;
+	}
+	else
+	{
+		answer = binarySearch(2, S.size(), S, subset, subsetQueue, k);
+	}
 
     std::cout << answer << std::endl;
     
