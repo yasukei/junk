@@ -7,6 +7,18 @@
 #define PRINTF
 #endif // DEBUG
 
+bool isNotDivisibleValueForTheSubset(int value, const std::vector<int>& subset)
+{
+    for(auto it1 = subset.begin(); it1 != subset.end(); it1++)
+    {
+		if((*it1 + value) % k == 0)
+		{
+			return false;
+        }
+    }
+    return true;
+}
+
 bool isNotDivisibleSubset(const std::vector<int>& subset, int k)
 {
     for(auto it1 = subset.begin(); it1 != subset.end(); it1++)
