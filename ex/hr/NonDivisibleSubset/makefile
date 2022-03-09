@@ -2,6 +2,7 @@ TARGET=main
 
 #CPPFLAGS=-pg -O0 -g
 CPPFLAGS=-pg -O0
+#CPPFLAGS=-pg -O3
 
 $(TARGET): main.cpp
 

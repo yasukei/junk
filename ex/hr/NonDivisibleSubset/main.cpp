@@ -1,17 +1,52 @@
 #include <bits/stdc++.h>
 
-#define DEBUG
-#ifdef DEBUG
-#define PRINTF printf
-#else // DEBUG
-#define PRINTF
-#endif // DEBUG
+static int K;
 
-bool isNotDivisibleValueForTheSubset(int value, const std::vector<int>& subset)
+#if 0
+#define PRINTF printf
+#else
+#define PRINTF
+#endif
+
+static std::unordered_map<int, bool> cache;
+
+void initialize(int k, std::vector<int> v)
 {
-    for(auto it1 = subset.begin(); it1 != subset.end(); it1++)
+	K = k;
+
+	for(int i = 0; i < v.size(); i++)
+	{
+		for(int j = i + 1; j < v.size(); j++)
+		{
+			int value = v[i] + v[j];
+			bool result = value % K == 0;
+			cache.insert(std::make_pair(value, result));
+		}
+	}
+}
+
+bool isDivisible(int value)
+{
+#if 1
+	return value % K == 0;
+#else
+	auto it = cache.find(value);
+	return it->second;
+#endif
+}
+
+bool isNotDivisibleValueForTheSubset(int value, const int* subset, int subsetSize)
+{
+	PRINTF("subsetSize: [%d]\n", subsetSize);
+
+    for(int i = 0; i < subsetSize; i++)
     {
-		if((*it1 + value) % k == 0)
+		PRINTF("\t\t\t\t\tsubset[i]: [%d], value: [%d]\n", subset[i], value);
+#if 0
+		if((subset[i] + value) % K == 0)
+#else
+		if(isDivisible(subset[i] + value))
+#endif
 		{
 			return false;
         }
@@ -19,96 +54,27 @@ bool isNotDivisibleValueForTheSubset(int value, const std::vector<int>& subset)
     return true;
 }
 
-bool isNotDivisibleSubset(const std::vector<int>& subset, int k)
+void makeSubset(const int* motherSet, int motherSetSize, int* subset, int subsetSize, int& maxSubsetSize)
 {
-    for(auto it1 = subset.begin(); it1 != subset.end(); it1++)
-    {
-        for(auto it2 = std::next(it1); it2 != subset.end(); it2++)
-        {
-            if((*it1 + *it2) % k == 0)
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-bool makeSubset(const std::vector<int>& motherSet, int motherSetSize, int depth, std::vector<int>& subset, std::vector<std::vector<int>>& subsetQueue, int k)
-{
-	bool found = false;
-
-	for(int i = motherSetSize - 1; !found && i >= 0; i--)
+	for(int i = motherSetSize - 1; i >= 0; i--)
 	{
-		subset.push_back(motherSet[i]);
-
-		if(depth == 1)
+		if(maxSubsetSize > i + subsetSize)
 		{
-			found = isNotDivisibleSubset(subset, k);
-			if(found)
-			{
-				subsetQueue.push_back(subset);
-			}
+			break;
 		}
-		else
+		if(!isNotDivisibleValueForTheSubset(motherSet[i], subset, subsetSize))
 		{
-			found = makeSubset(motherSet, i, depth - 1, subset, subsetQueue, k);
+			continue;
 		}
-		subset.pop_back();
-	}
-	return found;
-}
 
-void printSubset(const std::vector<int>& subset)
-{
-	for(int i = 0; i < subset.size(); i++)
-	{
-		PRINTF("%d ", subset[i]);
-	}
-	PRINTF("\n");
-}
-
-void printSubsetQueue(const std::vector<std::vector<int>>& subsetQueue)
-{
-	PRINTF("[subsetQueue]\n");
-	PRINTF("size: [%lu]\n", subsetQueue.size());
-	for(int i = 0; i < subsetQueue.size(); i++)
-	{
-		printSubset(subsetQueue[i]);
-	}
-	PRINTF("\n");
-}
-
-int binarySearch(int searchLeft, int searchRight, const std::vector<int>& motherSet, std::vector<int>& subset, std::vector<std::vector<int>>& subsetQueue, int k)
-{
-	int searchIndex = searchLeft + (searchRight - searchLeft) / 2;
-	int result1 = 0;
-
-	PRINTF("left, index, right: %d, %d, %d\n", searchLeft, searchIndex, searchRight);
-
-	subsetQueue.clear();
-	bool found = makeSubset(motherSet, motherSet.size(), searchIndex, subset, subsetQueue, k);
-	//printSubsetQueue(subsetQueue);
-
-	if(found)
-	{
-		result1 = subsetQueue[0].size();
-	}
-
-	int result2 = 0;
-	if(searchLeft < searchRight)
-	{
-		if(found)
+		subset[subsetSize] = motherSet[i];
+		if(subsetSize + 1 > maxSubsetSize)
 		{
-			result2 = binarySearch(searchIndex + 1, searchRight, motherSet, subset, subsetQueue, k);
+			maxSubsetSize = subsetSize + 1;
+			PRINTF("\t\t\t\t\t\t\t\t\t\tmaxSubsetSize: [%d]\n", maxSubsetSize);
 		}
-		else
-		{
-			result2 = binarySearch(searchLeft, searchIndex - 1, motherSet, subset, subsetQueue, k);
-		}
+		makeSubset(motherSet, i, subset, subsetSize + 1, maxSubsetSize);
 	}
-
-	return result1 > result2 ? result1 : result2;
 }
 
 int main(void)
@@ -123,18 +89,20 @@ int main(void)
         int temp;
         std::cin >> S[i];
     }
+	std::sort(S.rbegin(), S.rend());
+	initialize(k, S);
 
 	std::vector<int> subset;
-	std::vector<std::vector<int>> subsetQueue;
+	subset.resize(n);
 
-    int answer;
+    int answer = 0;
    	if(k == 1)
 	{
 		answer = 1;
 	}
 	else
 	{
-		answer = binarySearch(2, S.size(), S, subset, subsetQueue, k);
+		makeSubset(S.data(), S.size(), subset.data(), 0, answer);
 	}
 
     std::cout << answer << std::endl;
