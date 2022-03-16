@@ -1,52 +1,102 @@
 #include <bits/stdc++.h>
 
-static int K;
-
 #if 0
 #define PRINTF printf
 #else
 #define PRINTF
 #endif
 
-static std::unordered_map<int, bool> cache;
+static std::bitset<2*1000*1000*1000> isDivisible;
+static int K;
+static std::vector<int> maxSubset;
 
-void initialize(int k, std::vector<int> v)
+static void solve(int k, std::vector<int>& v)
 {
-	K = k;
+	int counter;
+	std::vector<std::vector<int>> temp;
+	temp.resize(v.size());
 
-	for(int i = 0; i < v.size(); i++)
+	for(int i = 0; i < v.size(); ++i)
 	{
-		for(int j = i + 1; j < v.size(); j++)
+		counter = 0;
+		for(int j = 0; j < v.size(); ++j)
 		{
-			int value = v[i] + v[j];
-			bool result = value % K == 0;
-			cache.insert(std::make_pair(value, result));
+			if(i == j)
+			{
+				continue;
+			}
+
+			if((v[i] + v[j]) % k != 0)
+			{
+				counter++;
+			}
+		}
+		temp[counter].push_back(v[i]);
+	}
+
+#if 1
+	for(int i = 0; i < temp.size(); ++i)
+	{
+		printf("temp[%d]:", i);
+		for(int j = 0; j < temp[i].size(); ++j)
+		{
+			printf(" %d", temp[i][j]);
+		}
+		printf("\n");
+	}
+#endif
+
+	v.clear();
+	for(int i = 0; i < temp.size(); ++i)
+	//for(int i = temp.size() - 1 ; i >= 0; --i)
+	{
+		if(temp[i].empty())
+		{
+			continue;
+		}
+
+		for(int j = 0; j < temp[i].size(); j++)
+		{
+			v.push_back(temp[i][j]);
 		}
 	}
 }
 
-bool isDivisible(int value)
+static void initialize(int k, const std::vector<int>& v)
 {
-#if 1
+	K = k;
+
+	for(int i = 0; i < v.size(); ++i)
+	{
+		for(int j = i + 1; j < v.size(); ++j)
+		{
+			int value = v[i] + v[j];
+			if(value % K == 0)
+			{
+				isDivisible.set(value);
+			}
+		}
+	}
+}
+
+static bool __isDivisible(int value)
+{
+#if 0
 	return value % K == 0;
 #else
-	auto it = cache.find(value);
-	return it->second;
+	return isDivisible[value];
 #endif
 }
 
-bool isNotDivisibleValueForTheSubset(int value, const int* subset, int subsetSize)
+static bool isNotDivisibleValueForTheSubset(int value, const int* subset, int subsetSize)
 {
 	PRINTF("subsetSize: [%d]\n", subsetSize);
 
-    for(int i = 0; i < subsetSize; i++)
+    for(int i = 0; i < subsetSize; ++i)
     {
 		PRINTF("\t\t\t\t\tsubset[i]: [%d], value: [%d]\n", subset[i], value);
-#if 0
-		if((subset[i] + value) % K == 0)
-#else
-		if(isDivisible(subset[i] + value))
-#endif
+
+		if(__isDivisible(subset[i] + value))
 		{
 			return false;
         }
@@ -54,9 +104,9 @@ bool isNotDivisibleValueForTheSubset(int value, const int* subset, int subsetSiz
     return true;
 }
 
-void makeSubset(const int* motherSet, int motherSetSize, int* subset, int subsetSize, int& maxSubsetSize)
+static void makeSubset(const int* motherSet, int motherSetSize, int* subset, int subsetSize, int& maxSubsetSize)
 {
-	for(int i = motherSetSize - 1; i >= 0; i--)
+	for(int i = motherSetSize - 1; i >= 0; --i)
 	{
 		if(maxSubsetSize > i + subsetSize)
 		{
@@ -71,6 +121,11 @@ void makeSubset(const int* motherSet, int motherSetSize, int* subset, int subset
 		if(subsetSize + 1 > maxSubsetSize)
 		{
 			maxSubsetSize = subsetSize + 1;
+			maxSubset.clear();
+			for(int i = 0; i < subsetSize + 1; i++)
+			{
+				maxSubset.push_back(subset[i]);
+			}
 			PRINTF("\t\t\t\t\t\t\t\t\t\tmaxSubsetSize: [%d]\n", maxSubsetSize);
 		}
 		makeSubset(motherSet, i, subset, subsetSize + 1, maxSubsetSize);
@@ -86,11 +141,11 @@ int main(void)
 	S.resize(n);
     for(int i = 0; i < n; i++)
     {
-        int temp;
         std::cin >> S[i];
     }
 	std::sort(S.rbegin(), S.rend());
 	initialize(k, S);
+	//solve(k, S);
 
 	std::vector<int> subset;
 	subset.resize(n);
@@ -106,6 +161,10 @@ int main(void)
 	}
 
     std::cout << answer << std::endl;
+	for(int i = 0; i < maxSubset.size(); ++i)
+	{
+		printf("%d\n", maxSubset[i]);
+	}
     
     return 0;
 }
