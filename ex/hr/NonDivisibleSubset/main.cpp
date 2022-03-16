@@ -1,5 +1,11 @@
 #include <bits/stdc++.h>
 
+/*
+	- multi-threading
+	- convert values in S into indirect index
+
+ */
+
 #if 0
 #define PRINTF printf
 #else
@@ -7,7 +13,6 @@
 #endif
 
 static std::bitset<2*1000*1000*1000> isDivisible;
-static int K;
 static std::vector<int> maxSubset;
 
 static void solve(int k, std::vector<int>& v)
@@ -62,16 +67,14 @@ static void solve(int k, std::vector<int>& v)
 	}
 }
 
-static void initialize(int k, const std::vector<int>& v)
+static void __initialize(int k, const std::vector<int>& v)
 {
-	K = k;
-
 	for(int i = 0; i < v.size(); ++i)
 	{
 		for(int j = i + 1; j < v.size(); ++j)
 		{
 			int value = v[i] + v[j];
-			if(value % K == 0)
+			if(value % k == 0)
 			{
 				isDivisible.set(value);
 			}
@@ -81,14 +84,10 @@ static void initialize(int k, const std::vector<int>& v)
 
 static bool __isDivisible(int value)
 {
-#if 0
-	return value % K == 0;
-#else
 	return isDivisible[value];
-#endif
 }
 
-static bool isNotDivisibleValueForTheSubset(int value, const int* subset, int subsetSize)
+static bool __isDivisibleValueForTheSubset(int value, const int* subset, int subsetSize)
 {
 	PRINTF("subsetSize: [%d]\n", subsetSize);
 
@@ -98,10 +97,10 @@ static bool isNotDivisibleValueForTheSubset(int value, const int* subset, int su
 
 		if(__isDivisible(subset[i] + value))
 		{
-			return false;
+			return true;
         }
     }
-    return true;
+    return false;
 }
 
 static void makeSubset(const int* motherSet, int motherSetSize, int* subset, int subsetSize, int& maxSubsetSize)
@@ -112,7 +111,7 @@ static void makeSubset(const int* motherSet, int motherSetSize, int* subset, int
 		{
 			break;
 		}
-		if(!isNotDivisibleValueForTheSubset(motherSet[i], subset, subsetSize))
+		if(__isDivisibleValueForTheSubset(motherSet[i], subset, subsetSize))
 		{
 			continue;
 		}
@@ -144,7 +143,7 @@ int main(void)
         std::cin >> S[i];
     }
 	std::sort(S.rbegin(), S.rend());
-	initialize(k, S);
+	__initialize(k, S);
 	//solve(k, S);
 
 	std::vector<int> subset;
