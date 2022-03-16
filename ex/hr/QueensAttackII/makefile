@@ -1,7 +1,7 @@
 TARGET=main
 
 #CPPFLAGS=-pg -O0 -g
-CPPFLAGS=-pg -O0
+CPPFLAGS=-pg -O0 -pthread
 #CPPFLAGS=-pg -O3 -pthread
 
 $(TARGET): main.cpp
