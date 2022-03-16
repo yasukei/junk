@@ -1,145 +1,171 @@
 #include <bits/stdc++.h>
 
-#define printf
+//#define PRINTF printf
+#define PRINTF
+
+struct Direction
+{
+	enum Enum
+	{
+		OutOfBoarder = -1,
+		North = 0,
+		South,
+		East,
+		West,
+		NorthEast,
+		SouthEast,
+		SouthWest,
+		NorthWest,
+	};
+};
+
+struct Point
+{
+public:
+	Point(int x, int y) :
+		_x(x),
+		_y(y)
+	{
+	}
+
+	int x() const { return _x; }
+	int y() const { return _y; }
+
+	Direction::Enum getDirection()
+	{
+		Direction::Enum result = Direction::OutOfBoarder;
+
+		if(_y > 0 && _x == 0)
+		{
+			result = Direction::North;
+		}
+		else if(_y < 0 && _x == 0)
+		{
+			result = Direction::South;
+		}
+		else if(_y == 0 && _x > 0)
+		{
+			result = Direction::East;
+		}
+		else if(_y == 0 && _x < 0)
+		{
+			result = Direction::West;
+		}
+		else if(_y > 0 && _x > 0 && _y == _x)
+		{
+			result = Direction::NorthEast;
+		}
+		else if(_y < 0 && _x > 0 && -_y == _x)
+		{
+			result = Direction::SouthEast;
+		}
+		else if(_y < 0 && _x < 0 && _y == _x)
+		{
+			result = Direction::SouthWest;
+		}
+		else if(_y > 0 && _x < 0 && _y == -_x)
+		{
+			result = Direction::NorthWest;
+		}
+		return result;
+	}
+
+	int getDistanceFromOrigin()
+	{
+		if(getDirection() == Direction::OutOfBoarder)
+		{
+			return INT_MAX;
+		}
+
+		if(_y == 0)
+		{
+			return std::abs(_x) - 1;
+		}
+		return std::abs(_y) - 1;
+	}
+
+	std::string to_string()
+	{
+		char buf[128];
+		snprintf(buf, sizeof(buf), "x: [%4d], y: [%4d], direction: [%2d], distance: [%4d]", _x, _y, getDirection(), getDistanceFromOrigin());
+		return std::string(buf);
+	}
+
+private:
+	int _x;
+	int _y;
+};
 
 int main(void)
 {
-    int n, k;
-    int rq, cq;
+	int n, k;
+	int rq, cq;
+
     std::cin >> n >> k;    
     std::cin >> rq >> cq;
 
-    std::vector<std::bitset<100*1000>> obstacles;
-    obstacles.resize(n+1);
-    //for(int i = 0; i <= n; ++i)
-    //{
-    //    obstacles[i].resize(n+1);    
-    //}
-    int r, c;
+	// Nearest obstacles
+	Point north(0,          n - rq + 1);
+	Point south(0,          0 - rq);
+	Point  east(n - cq + 1, 0);
+	Point  west(0 - cq,     0);
+	int temp;
+	temp = std::abs(n - cq + 1) < std::abs(n - rq + 1) ? std::abs(n - cq + 1) : std::abs(n - rq + 1); Point northEast(temp, temp);
+	temp = std::abs(n - cq + 1) < std::abs(0 - rq)     ? std::abs(n - cq + 1) : std::abs(0 - rq);     Point southEast(temp, -temp);
+	temp = std::abs(0 - cq)     < std::abs(0 - rq)     ? std::abs(0 - cq)     : std::abs(0 - rq);     Point southWest(-temp, -temp);
+	temp = std::abs(0 - cq)     < std::abs(n - rq + 1) ? std::abs(0 - cq)     : std::abs(n - rq + 1); Point northWest(-temp, temp);
+
+	int r;
+	int c;
     for(int i = 0; i < k; ++i)
     {
         std::cin >> r >> c;
-        //obstacles[r][c] = true;
-        obstacles[r].set(c);
+
+		Point newObstacle(c - cq, r - rq);
+		switch(newObstacle.getDirection())
+		{
+			case Direction::North:
+				if(newObstacle.getDistanceFromOrigin() < north.getDistanceFromOrigin()) { north = newObstacle; } break;
+			case Direction::South:
+				if(newObstacle.getDistanceFromOrigin() < south.getDistanceFromOrigin()) { south = newObstacle; } break;
+			case Direction::East:
+				if(newObstacle.getDistanceFromOrigin() < east.getDistanceFromOrigin()) { east = newObstacle; } break;
+			case Direction::West:
+				if(newObstacle.getDistanceFromOrigin() < west.getDistanceFromOrigin()) { west = newObstacle; } break;
+			case Direction::NorthEast:
+				if(newObstacle.getDistanceFromOrigin() < northEast.getDistanceFromOrigin()) { northEast = newObstacle; } break;
+			case Direction::SouthEast:
+				if(newObstacle.getDistanceFromOrigin() < southEast.getDistanceFromOrigin()) { southEast = newObstacle; } break;
+			case Direction::SouthWest:
+				if(newObstacle.getDistanceFromOrigin() < southWest.getDistanceFromOrigin()) { southWest = newObstacle; } break;
+			case Direction::NorthWest:
+				if(newObstacle.getDistanceFromOrigin() < northWest.getDistanceFromOrigin()) { northWest = newObstacle; } break;
+			default:
+				break;
+		}
     }
 
-	std::atomic<int> numofCanAttack(0);
+	PRINTF("\n");
+	PRINTF("north,     %s\n", north.to_string().c_str());
+	PRINTF("south,     %s\n", south.to_string().c_str());
+	PRINTF("east,      %s\n", east.to_string().c_str());
+	PRINTF("west,      %s\n", west.to_string().c_str());
+	PRINTF("northEast, %s\n", northEast.to_string().c_str());
+	PRINTF("southEast, %s\n", southEast.to_string().c_str());
+	PRINTF("southWest, %s\n", southWest.to_string().c_str());
+	PRINTF("northWest, %s\n", northWest.to_string().c_str());
 
-    // Up
-	std::thread tUp([&](){
-		for(int i = rq + 1, j = cq; i <= n; ++i)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
+	int answer = 0;
+	answer += north.getDistanceFromOrigin();
+	answer += south.getDistanceFromOrigin();
+	answer += east.getDistanceFromOrigin();
+	answer += west.getDistanceFromOrigin();
+	answer += northEast.getDistanceFromOrigin();
+	answer += southEast.getDistanceFromOrigin();
+	answer += southWest.getDistanceFromOrigin();
+	answer += northWest.getDistanceFromOrigin();
 
-    // Down
-	std::thread tDown([&](){
-		for(int i = rq - 1, j = cq; i >= 1; --i)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-    // Right
-	std::thread tRight([&](){
-		for(int i = rq, j = cq + 1; j <= n; ++j)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-    // Left
-	std::thread tLeft([&](){
-		for(int i = rq, j = cq - 1; j >= 1; --j)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-    // Right-Up
-	std::thread tRightUp([&](){
-		for(int i = rq + 1, j = cq + 1; i <= n && j <= n; ++i, ++j)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-	tUp.join();
-	tDown.join();
-	tRight.join();
-	tLeft.join();
-
-    // Right-Down
-	std::thread tRightDown([&](){
-		for(int i = rq + 1, j = cq - 1; i <= n && j >= 1; ++i, --j)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-    // Left-Down
-	std::thread tLeftDown([&](){
-		for(int i = rq - 1, j = cq - 1; i >= 1 && j >= 1; --i, --j)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-    // Left-Up
-	std::thread tLeftUp([&](){
-		for(int i = rq - 1, j = cq + 1; i >= 1 && j <= n; --i, ++j)
-		{
-			if(obstacles[i][j])
-			{
-				break;
-			}
-			printf("i: [%d], j: [%d]\n", i, j);
-			numofCanAttack++;
-		}
-	});
-
-	tRightUp.join();
-	tRightDown.join();
-	tLeftDown.join();
-	tLeftUp.join();
-
-    std::cout << numofCanAttack << std::endl;
+    std::cout << answer << std::endl;
 
     return 0;
 }
