@@ -4,3 +4,6 @@
 [submodule "opt/googletest"]
 	path = opt/googletest
 	url = https://github.com/google/googletest
+[submodule "ex/zdl/dlfs"]
+	path = ex/zdl/dlfs
+	url = https://github.com/oreilly-japan/deep-learning-from-scratch.git
