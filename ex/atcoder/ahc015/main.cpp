@@ -19,19 +19,13 @@ public:
 	}
 
 	std::uint64_t getElapsedTimeMillisec() const {
-		using namespace std::chrono;
-		milliseconds elapsed = duration_cast<milliseconds>(steady_clock::now() - ref_);
-		return elapsed.count();
+		return getElapsedTime<std::chrono::milliseconds>();
 	}
 	std::uint64_t getElapsedTimeMicrosec() const {
-		using namespace std::chrono;
-		microseconds elapsed = duration_cast<microseconds>(steady_clock::now() - ref_);
-		return elapsed.count();
+		return getElapsedTime<std::chrono::microseconds>();
 	}
 	std::uint64_t getElapsedTimeNanosec() const {
-		using namespace std::chrono;
-		nanoseconds elapsed = duration_cast<nanoseconds>(steady_clock::now() - ref_);
-		return elapsed.count();
+		return getElapsedTime<std::chrono::nanoseconds>();
 	}
 
 	void reset() {
@@ -44,39 +38,40 @@ public:
 private:
 	std::chrono::steady_clock::time_point ref_;
 	bool printWhenDestruct_;
+
+	template<typename T>
+	std::uint64_t getElapsedTime() const {
+		T elapsed = std::chrono::duration_cast<T>(std::chrono::steady_clock::now() - ref_);
+		return elapsed.count();
+	}
 };
 
 class Board {
 public:
 	Board() {
-		for(int i = 0; i < 10; i++) {
-			for(int j = 0; j < 10; j++) {
-				board_[i][j] = 0;
-			}
+		for(size_t i = 0; i < board_.size(); i++) {
+			board_[i].fill(0);
 		}
-		space_ = 100;
 	}
 
-	Board(const Board& self) {
-		std::memcpy(this->board_, self.board_, sizeof(int)*100);
-		this->space_ = self.space_;
-	}
+	Board(const Board& rhs) :
+		board_(rhs.board_)
+	{}
 
-	bool put(int candy, int pos) {
+	bool put(char candy, int pos) {
 		bool result = false;
 		int counter = 0;
-		for(int i = 0; i < 10; i++) {
-			for(int j = 0; j < 10; j++) {
+		for(size_t i = 0; i < board_.size(); i++) {
+			for(size_t j = 0; j < board_[i].size(); j++) {
 				if(board_[i][j] == 0) {
 					counter++;
 					if(counter == pos) {
 						board_[i][j] = candy;
-						space_--;
 						result = true;
 						goto lExit;
 					}
 				}
-			}
+			}	
 		}
 lExit:
 		return result;
@@ -89,19 +84,15 @@ lExit:
 			case 'L': left(); break;
 		}
 	}
-	int getSpace() const {
-		return space_;
-	}
 	int getScore() const {
 		int score = 0;
-		int temp[10][10];
-		std::memcpy(temp, board_, sizeof(int)*100);
+		std::array<std::array<char, 10>, 10> temp(board_);
 
 		std::list<std::pair<int, int>> list;
 		int d[3] = {0, 0, 0};
 
-		for(int i = 0; i < 10; i++) {
-			for(int j = 0; j < 10; j++) {
+		for(size_t i = 0; i < temp.size(); i++) {
+			for(size_t j = 0; j < temp[i].size(); j++) {
 				if(temp[i][j] == 0) continue;
 
 				int kind = temp[i][j];
@@ -128,21 +119,21 @@ lExit:
 		for(int i = 0; i < 3; i++) {
 			dAll += d[i]*d[i];
 		}
+		if(dAll == 0) return 0;
+
 		return (1000LL*1000LL*score) / dAll;
 	}
 	void print() const {
-		for(int i = 0; i < 10; i++) {
-			for(int j = 0; j < 10; j++) {
+		for(size_t i = 0; i < board_.size(); i++) {
+			for(size_t j = 0; j < board_[i].size(); j++) {
 				printf("%d ", board_[i][j]);
 			}
 			printf("\n");
 		}
 	}
 
-
 private:
-	int board_[10][10];
-	int space_;
+	std::array<std::array<char, 10>, 10> board_;
 
 	void forward() {
 		for(int i = 0; i < 10; i++) {
@@ -206,39 +197,77 @@ private:
 	}
 };
 
-std::random_device seed_gen;
-std::default_random_engine engine(seed_gen());
-int f[100];
-const char moves[4] = {'F', 'B', 'R', 'L'};
+class Searcher {
+public:
+	Searcher(const std::vector<int>& f) :
+		f_(f),
+		index_(0),
+		current_()
+	{}
 
-void recurse(const Board& b, int index, int* p, int depth, int& bestScore, int& bestMoveIndex) {
-	std::vector<Board> boards(4, b);
+	char order(int p) {
+		//printf("order: %d\n", p);
+		//int depth = index_ > 90 ? 3 : 2;
+		//depth = (100 - index_ - 1) >= depth ? depth : 100 - index_ - 1;
+		int depth = 2;
 
-	if(depth == 1) {
-		for(int i = 0; i < 4; i++) {
-			boards[i].move(moves[i]);
+		current_.put((char)f_[index_], p);
+		index_ += 1;
+		std::pair<char, int> result = search(depth, current_, index_);
+		char move = std::get<0>(result);
+		current_.move(move);
+		return move;
+	}
 
-			if(boards[i].getScore() > bestScore) {
-				bestScore = boards[i].getScore();
-				bestMoveIndex = i;
+	const Board& getBoard() const {
+		return current_;
+	}
+private:
+	std::vector<int> f_;
+	int index_;
+	Board current_;
+
+	std::pair<char, int> search(int depth, const Board& current, int nextIndex) const {
+		static const std::array<char, 4> moves = {'F', 'B', 'R', 'L'};
+		char move = 'F';
+		int score = 0;
+
+		if(depth <= 1) {
+			for(auto m : moves) {
+				Board b(current);
+
+				b.move(m);
+				int s = b.getScore();
+				if(s > score) {
+					score = s;
+					move = m;
+				}
+			}
+			goto lExit;
+		}
+
+		for(auto m : moves) {
+			int temp = 0;
+			for(int p = 1; p < 100-nextIndex; p++) {
+				Board b(current_);
+
+				b.move(m);
+				b.put(f_[nextIndex], p);
+				std::pair<char, int> result = search(depth-1, b, nextIndex+1);
+				temp += std::get<1>(result);
+			}
+			if(temp > score) {
+				score = temp;
+				move = m;
 			}
 		}
-		return;
-	}
+		score /= 100-nextIndex-1 > 0 ? 100-nextIndex-1 : 1;
 
-	for(int i = 0; i < 4; i++) {
-		boards[i].move(moves[i]);
-		boards[i].put(f[index], p[0]);
-
-		int score = 0;
-		int moveIndex = 0;
-		recurse(boards[i], index+1, &p[1], depth-1, score, moveIndex);
-		if(score > bestScore) {
-			bestScore = score;
-			bestMoveIndex = i;
-		}
+lExit:
+		//printf("depth: %d, move: %c, score: %'d, nextIndex: %d\n", depth, move, score, nextIndex);
+		return std::make_pair(move, score);
 	}
-}
+};
 
 int main() {
 #if 0
@@ -247,46 +276,25 @@ int main() {
 #endif
 	Clock clock;
 
-	int d[3] = {0, 0, 0};
-	for(size_t i = 0; i < 100; i++) {
+	std::vector<int> f(100);
+	for(size_t i = 0; i < f.size(); i++) {
 		std::cin >> f[i];
-		d[f[i]-1] += 1;
-	}
-	int mvp;
-	if(d[0] >= d[1] && d[0] >= d[2]) {
-		mvp = 1;
-	} else if(d[1] >= d[0] && d[1] >= d[2]) {
-		mvp = 2;
-	} else {
-		mvp = 3;
 	}
 
-	Board board;
-
-	for(int i = 0; i < 100; i++) {
+	Searcher searcher(f);
+	for(size_t i = 0; i < f.size(); i++) {
 		int p;
 		std::cin >> p;
 
-		board.put(f[i], p);
-
-		std::uniform_int_distribution<> dist(1, 99-std::min(98, i));
-		int depth = 2;
-		std::vector<int> predict(depth);
-		for(int j = 0; j < depth; j++) {
-			predict[j] = dist(engine);
-		}
-
-		int score = 0;
-		int moveIndex = 0;
-		recurse(board, i+1, predict.data(), depth, score, moveIndex);
-		board.move(moves[moveIndex]);
-		printf("%c\n", moves[moveIndex]); fflush(stdout);
+		char move = searcher.order(p);
+		printf("%c\n", move);
+		fflush(stdout);
 	}
 
 #if 1
+	const Board& board = searcher.getBoard();
 	board.print();
 	printf("\n");
-	printf("mvp:   %d\n", mvp);
 	printf("Score: %'d\n", board.getScore());
 	clock.print();
 #endif

@@ -1,8 +1,8 @@
 TARGET=main
 
 #CPPFLAGS=-g -Wall -O0
-#CPPFLAGS=-Wall -O3 -pg
-CPPFLAGS=-Wall -O3
+CPPFLAGS=-Wall -O1 -pg
+#CPPFLAGS=-Wall -O3
 
 $(TARGET): main.cpp
 
