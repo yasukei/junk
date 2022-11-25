@@ -7,3 +7,6 @@
 [submodule "ex/zdl/dlfs"]
 	path = ex/zdl/dlfs
 	url = https://github.com/oreilly-japan/deep-learning-from-scratch.git
+[submodule "ex/zdl2/dlfs2"]
+	path = ex/zdl2/dlfs2
+	url = https://github.com/oreilly-japan/deep-learning-from-scratch-2.git
