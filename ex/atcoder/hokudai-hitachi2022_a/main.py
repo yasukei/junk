@@ -333,29 +333,27 @@ class JobAdmin:
     def __init__(self):
         self._all_jobs = dict()
         self._open_jobs_foreach_vertex = collections.defaultdict(list)
-        self._numof_open_jobs = 0
         self._hidden_jobs = dict()
-        self._numof_hidden_jobs = 0
+        self._done_jobs = list()
         self._subsequent_job_ids = collections.defaultdict(list)
         self._next_open_jobs = []
 
     def __str__(self):
-        l1 = 'numof all jobs:    {}'.format(len(self._all_jobs))
-        l2 = 'numof open jobs:   {}'.format(self._numof_open_jobs)
-        l3 = 'numof hidden jobs: {}'.format(self._numof_hidden_jobs)
-        return '\n'.join([l1, l2, l3])
+        numof_open_jobs = 0
+        for open_jobs in self._open_jobs_foreach_vertex.values():
+            numof_open_jobs += len(open_jobs)
+
+        return f"all={len(self._all_jobs)}, open={numof_open_jobs}, hidden={len(self._hidden_jobs)}, done={len(self._done_jobs)}"
 
     def addJob(self, job):
         self._all_jobs[job.getJobId()] = job
 
         if len(job.getPriorJobIds()) > 0:
             self._hidden_jobs[job.getJobId()] = job
-            self._numof_hidden_jobs += 1
             for priorJobId in job.getPriorJobIds():
                 self._subsequent_job_ids[priorJobId].append(job.getJobId())
         else:
             self._open_jobs_foreach_vertex[job.getVertex()].append(job)
-            self._numof_open_jobs += 1
 
     def getJobByJobId(self, job_id):
         return self._all_jobs[job_id]
@@ -368,11 +366,11 @@ class JobAdmin:
         return result
 
     def notifyDoneJob(self, done_job):
-        if self._open_jobs_foreach_vertex.get(done_job.getVertex()) is None:
+        if not done_job in self._open_jobs_foreach_vertex[done_job.getVertex()]:
             return
 
-        del self._open_jobs_foreach_vertex[done_job.getVertex()]
-        self._numof_open_jobs -= 1
+        self._open_jobs_foreach_vertex[done_job.getVertex()].remove(done_job)
+        self._done_jobs.append(done_job)
 
         for subsequentJobId in self._subsequent_job_ids[done_job.getJobId()]:
             subsequentJob = self._hidden_jobs[subsequentJobId]
@@ -383,9 +381,7 @@ class JobAdmin:
     def advanceTime(self):
         for job in self._next_open_jobs:
             del self._hidden_jobs[job.getJobId()]
-            self._numof_hidden_jobs -= 1
             self._open_jobs_foreach_vertex[job.getVertex()].append(job)
-            self._numof_open_jobs += 1
         self._next_open_jobs.clear()
 
 class ControlPoint:
@@ -477,6 +473,7 @@ class Environment:
         for i in range(self._Nworker):
             log.debug(f"             {self._workers[i]}")
         log.debug(f"Njob:      {self._Njob}")
+        log.debug(f"             {self._jobAdmin}")
 
     def run(self):
         # Output
@@ -490,6 +487,7 @@ class Environment:
         # Score
         score, = input().split()
         self._score = int(score)
+        log.debug(f"job:        {self._jobAdmin}")
         log.debug(f"score:      {self._score}")
 
 # -----------------------------------------------------------------------------
