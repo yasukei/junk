@@ -125,6 +125,7 @@ class WorkerEvent(enum.Enum):
 
 class Worker:
     def __init__(self, initial_vertex, max_workload, job_types, graph, job_admin):
+        self._initial_vertex = initial_vertex
         self._current_vertex = initial_vertex
         self._max_workload = max_workload
         self._job_types = job_types
@@ -149,7 +150,7 @@ class Worker:
         self._sm = sm
 
     def __str__(self):
-        return ' '.join(list(map(str, [self._current_vertex, self._max_workload, len(self._job_types), *self._job_types])))
+        return f"vertex={self._initial_vertex}, max_workload={self._max_workload}, job_types={self._job_types}"
 
     def getAction(self, current_time):
         if not self._started:
@@ -404,80 +405,85 @@ class RewardFunction:
             y_next = self._control_points[i].y()
             return (y_next - y_prev) * (t - t_prev) / (t_next - t_prev) + y_prev
 
+class Environment:
+    def __init__(self):
+        pass
+
+    def readInput(self):
+        # Time
+        Tmax, = input().split()
+        self._Tmax = int(Tmax)
+
+        # Graph
+        Nv, Ne = input().split()
+        self._Nv = int(Nv)
+        self._Ne = int(Ne)
+        edges = []
+        for _ in range(self._Ne):
+            u, v, d = input().split()
+            edge = Edge(int(u), int(v), int(d))
+            edges.append(edge)
+        self._graph = Graph(edges)
+
+        # Worker
+        Nworker, = input().split()
+        self._Nworker = int(Nworker)
+        self._workers = []
+        self._jobAdmin = JobAdmin()
+        for _ in range(self._Nworker):
+            v, Lmax, Njobtype, *jobTypes = input().split()
+            v, Lmax, Njobtype  = int(v), int(Lmax), int(Njobtype)
+            jobTypes = list(map(int, jobTypes))
+            worker = Worker(v, Lmax, jobTypes, self._graph, self._jobAdmin)
+            self._workers.append(worker)
+
+        # Job
+        Njob, = input().split()
+        self._Njob = int(Njob)
+        for _ in range(self._Njob):
+            jobId, jobType, Ntask, vertex = input().split()
+            jobId, jobType, Ntask, vertex = int(jobId), int(jobType), int(Ntask), int(vertex)
+            Nreward, *rewards = input().split()
+            Nreward = int(Nreward)
+            rewards = list(map(int, rewards))
+            Ndepend, *priorJobIds = input().split()
+            Ndepend = int(Ndepend)
+            priorJobIds = list(map(int, priorJobIds))
+            control_points = [ControlPoint(rewards[2*i], rewards[2*i+1]) for i in range(Nreward)]
+            job = Job(jobId, jobType, Ntask, vertex, control_points, priorJobIds)
+            self._jobAdmin.addJob(job)
+
+        # log basic info
+        log.debug(f"Tmax:      {self._Tmax}")
+        log.debug(f"Nv:        {self._Nv}")
+        log.debug(f"Ne:        {self._Ne}")
+        log.debug(f"Nworker:   {self._Nworker}")
+        for i in range(self._Nworker):
+            log.debug(f"  worker{i}: {self._workers[i]}")
+        log.debug(f"Njob:      {self._Njob}")
+
+    def run(self):
+        # Output
+        for t in range(1, self._Tmax+1):
+            for worker in self._workers:
+                action = worker.getAction(t)
+                log.debug(f"time: {t:03}, action: {action}")
+                print(action, flush=True)
+
+        # Score
+        score, = input().split()
+
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
 def main():
-    # Time
-    T, = input().split()
-    T = int(T)
-
-    # Graph
-    Nv, Ne = input().split()
-    Nv, Ne  = int(Nv), int(Ne)
-    edges = []
-    for _ in range(Ne):
-        u, v, d = input().split()
-        edge = Edge(int(u), int(v), int(d))
-        edges.append(edge)
-    graph = Graph(edges)
-
-    # Worker
-    Nworker, = input().split()
-    Nworker = int(Nworker)
-    workers = []
-    jobAdmin = JobAdmin()
-    for _ in range(Nworker):
-        v, Lmax, Njobtype, *jobTypes = input().split()
-        v, Lmax, Njobtype  = int(v), int(Lmax), int(Njobtype)
-        jobTypes = list(map(int, jobTypes))
-        worker = Worker(v, Lmax, jobTypes, graph, jobAdmin)
-        workers.append(worker)
-
-    # Job
-    Njob, = input().split()
-    Njob = int(Njob)
-    for _ in range(Njob):
-        jobId, jobType, Ntask, vertex = input().split()
-        jobId, jobType, Ntask, vertex = int(jobId), int(jobType), int(Ntask), int(vertex)
-        Nreward, *rewards = input().split()
-        Nreward = int(Nreward)
-        rewards = list(map(int, rewards))
-        Ndepend, *priorJobIds = input().split()
-        Ndepend = int(Ndepend)
-        priorJobIds = list(map(int, priorJobIds))
-        control_points = [ControlPoint(rewards[2*i], rewards[2*i+1]) for i in range(Nreward)]
-        job = Job(jobId, jobType, Ntask, vertex, control_points, priorJobIds)
-        jobAdmin.addJob(job)
-
-    # Output
-    for t in range(1, T+1):
-        for worker in workers:
-            action = worker.getAction(t)
-            log.debug(f"time: {t:03}, action: {action}")
-            print(action, flush=True)
-
-    # Score
-    score, = input().split()
-
-    # Debug info
-    #print(T, file=sys.stderr)
-    #print(Nv, Ne, file=sys.stderr)
-    #for edge in edges:
-    #    print(edge, file=sys.stderr)
-    #print(Nworker, file=sys.stderr)
-    #for worker in workers:
-    #    print(worker, file=sys.stderr)
-    #print(Njob, file=sys.stderr)
-    #for job in jobs:
-    #    print(job, file=sys.stderr)
+    env = Environment()
+    env.readInput()
+    env.run()
 
     #timeStart = time.perf_counter()
-    #a = np.ones((400, 400))
-    #np.dot(a, a)
     #timeEnd = time.perf_counter()
     #result = timeEnd - timeStart
-    #print(result, file=sys.stderr)
 
 if __name__ == '__main__':
     log.basicConfig(filename='debug.log', filemode='w', level=log.DEBUG)
