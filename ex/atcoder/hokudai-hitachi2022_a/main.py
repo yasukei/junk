@@ -180,20 +180,23 @@ class WorkerState_Moving(State):
             jobs = context._job_admin.getJobsByVertex(trajectory.getVertices()[-1], context._job_types)
             if len(jobs) > 0:
                 for job in jobs:
+                    #log.debug(str(job))
                     if job.getExpectedReward(context._current_time + trajectory.getDistance(), context._max_workload) > 0:
                         jobFound = True
                         break
-                if jobFound:
-                    break
-            else:
-                for vertex, distance in context._graph.getAdjacentVertices(trajectory.getVertices()[-1]):
-                    if vertex in sweeped:
-                        continue
-                    new_trajectory = Trajectory([*trajectory.getVertices(), vertex], trajectory.getDistance() + distance)
-                    pr_queue.put(new_trajectory)
-                    sweeped.add(vertex)
+
+            for vertex, distance in context._graph.getAdjacentVertices(trajectory.getVertices()[-1]):
+                if vertex in sweeped:
+                    continue
+                new_trajectory = Trajectory([*trajectory.getVertices(), vertex], trajectory.getDistance() + distance)
+                pr_queue.put(new_trajectory)
+                sweeped.add(vertex)
+
+            if jobFound:
+                break
 
         if not jobFound:
+            #log.debug('sweeped={}'.format(str(sweeped)))
             context._event_queue.append(WorkerEvent.NO_JOB)
             return
 
@@ -419,7 +422,7 @@ class RewardFunction:
 
 class Environment:
     def __init__(self):
-        pass
+        self._start_time = time.perf_counter()
 
     def readInput(self):
         # Time
@@ -487,6 +490,8 @@ class Environment:
         # Score
         score, = input().split()
         self._score = int(score)
+        end_time = time.perf_counter()
+        log.debug(f"time:       {end_time - self._start_time}")
         log.debug(f"job:        {self._jobAdmin}")
         log.debug(f"score:      {self._score}")
 
@@ -497,10 +502,6 @@ def main():
     env = Environment()
     env.readInput()
     env.run()
-
-    #timeStart = time.perf_counter()
-    #timeEnd = time.perf_counter()
-    #result = timeEnd - timeStart
 
 if __name__ == '__main__':
     log.basicConfig(filename='debug.log', filemode='w', level=log.DEBUG)
