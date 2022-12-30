@@ -25,34 +25,34 @@ class State:
 
 class Statemachine:
     def __init__(self, context=None):
-        self._initialState = None
-        self._currentState = None
+        self._initial_state = None
+        self._current_state = None
         self._context = context
         self._transitions = dict()
 
     def addTransition(self, src, dst, event):
         self._transitions[src, event] = dst
 
-    def setInitialState(self, initialState):
-        self._initialState = initialState
+    def setInitialState(self, initial_state):
+        self._initial_state = initial_state
 
     def start(self):
-        self._currentState = self._initialState
-        self._currentState.onEntry(self._context)
+        self._current_state = self._initial_state
+        self._current_state.onEntry(self._context)
 
     def onEvent(self, event):
-        dst = self._transitions.get((self._currentState, event))
+        dst = self._transitions.get((self._current_state, event))
         if dst == None:
             return
 
-        log.debug('{} exit'.format(type(self._currentState).__name__))
-        self._currentState.onExit(self._context)
+        log.debug('{} exit'.format(type(self._current_state).__name__))
+        self._current_state.onExit(self._context)
         log.debug('{} entry'.format(type(dst).__name__))
         dst.onEntry(self._context)
-        self._currentState = dst
+        self._current_state = dst
 
     def onAction(self):
-        return self._currentState.onAction(self._context)
+        return self._current_state.onAction(self._context)
 
 # -----------------------------------------------------------------------------
 # Graph
@@ -66,15 +66,12 @@ class Edge:
     def __str__(self):
         return ' '.join(list(map(str, [self.u, self.v, self.d])))
 
-    @property
     def u(self):
         return self._u
 
-    @property
     def v(self):
         return self._v
 
-    @property
     def d(self):
         return self._d
 
@@ -86,45 +83,36 @@ class Trajectory:
     def __lt__(self, other):
         return self._distance < other._distance
 
-    @property
-    def vertices(self):
+    def getVertices(self):
         return self._vertices
 
-    @property
-    def distance(self):
+    def getDistance(self):
         return self._distance
 
 class Graph:
     Nv_MAX = 2000
 
     def __init__(self, edges=[]):
-        self._adjacentVertices = collections.defaultdict(list)
-        self._trajectoryMatrix = [[None for _ in range(Graph.Nv_MAX + 1)] for _ in range(Graph.Nv_MAX + 1)]
+        self._adjacent_vertices = collections.defaultdict(list)
+        self._trajectory_matrix = [[None for _ in range(Graph.Nv_MAX + 1)] for _ in range(Graph.Nv_MAX + 1)]
         for edge in edges:
             self._addEdge(edge)
 
     def _addEdge(self, edge):
-        u, v, d = edge.u, edge.v, edge.d
-        self._adjacentVertices[u].append((v, d))
-        self._adjacentVertices[v].append((u, d))
+        u, v, d = edge.u(), edge.v(), edge.d()
+        self._adjacent_vertices[u].append((v, d))
+        self._adjacent_vertices[v].append((u, d))
 
-        self._trajectoryMatrix[u][v] = Trajectory([u, v], d)
-        self._trajectoryMatrix[v][u] = Trajectory([v, u], d)
+        self._trajectory_matrix[u][v] = Trajectory([u, v], d)
+        self._trajectory_matrix[v][u] = Trajectory([v, u], d)
 
     def getAdjacentVertices(self, vertex):
-        return self._adjacentVertices[vertex]
+        return self._adjacent_vertices[vertex]
 
     def getDistance(self, vertex1, vertex2):
-        if self._trajectoryMatrix[vertex1][vertex2] is None:
+        if self._trajectory_matrix[vertex1][vertex2] is None:
             raise NotImplemented()
-        return self._trajectoryMatrix[vertex1][vertex2].distance
-
-    #def getTrajectory(self, startVertex, endVertex):
-    #    trajectory = self._trajectoryMatrix[startVertex][endVertex]
-    #    if trajectory is not None:
-    #        return trajectory
-
-    #    # TODO
+        return self._trajectory_matrix[vertex1][vertex2].getDistance()
 
 
 # -----------------------------------------------------------------------------
@@ -136,19 +124,19 @@ class WorkerEvent(enum.Enum):
     COMPLETED = enum.auto()
 
 class Worker:
-    def __init__(self, initialVertex, maxWorkload, jobTypes, graph, jobAdmin):
-        self._currentVertex = initialVertex
-        self._maxWorkload = maxWorkload
-        self._jobTypes = jobTypes
+    def __init__(self, initial_vertex, max_workload, job_types, graph, job_admin):
+        self._current_vertex = initial_vertex
+        self._max_workload = max_workload
+        self._job_types = job_types
         self._graph = graph
-        self._jobAdmin = jobAdmin
+        self._job_admin = job_admin
 
-        self._eventQueue = collections.deque()
+        self._event_queue = collections.deque()
         self._trajectory = None
-        self._trajectoryIndex = None
-        self._remainingDistance = None
-        self._targetJob = None
-        self._currentTime = 0
+        self._trajectory_index = None
+        self._remaining_distance = None
+        self._target_job = None
+        self._current_time = 0
         self._started = False
         sm = Statemachine(self)
         moving = WorkerState_Moving()
@@ -161,101 +149,101 @@ class Worker:
         self._sm = sm
 
     def __str__(self):
-        return ' '.join(list(map(str, [self._currentVertex, self._maxWorkload, len(self._jobTypes), *self._jobTypes])))
+        return ' '.join(list(map(str, [self._current_vertex, self._max_workload, len(self._job_types), *self._job_types])))
 
-    def getAction(self, time):
+    def getAction(self, current_time):
         if not self._started:
             self._sm.start()
             self._started = True
 
-        self._currentTime = time
-        while len(self._eventQueue) > 0:
-            event = self._eventQueue.popleft()
+        self._current_time = current_time
+        while len(self._event_queue) > 0:
+            event = self._event_queue.popleft()
             self._sm.onEvent(event)
         return self._sm.onAction()
 
 class WorkerState_Moving(State):
     def onEntry(self, context):
-        trajectory = Trajectory([context._currentVertex], 0)
+        trajectory = Trajectory([context._current_vertex], 0)
         pr_queue = queue.PriorityQueue()
         pr_queue.put(trajectory)
         sweeped = set()
-        sweeped.add(context._currentVertex)
+        sweeped.add(context._current_vertex)
 
         jobFound = False
         while not pr_queue.empty():
             trajectory = pr_queue.get()
-            jobs = context._jobAdmin.getJobsByVertex(trajectory.vertices[-1], context._jobTypes)
+            jobs = context._job_admin.getJobsByVertex(trajectory.getVertices()[-1], context._job_types)
             if len(jobs) > 0:
                 for job in jobs:
-                    if job.getExpectedReward(context._currentTime + trajectory.distance, context._maxWorkload) > 0:
+                    if job.getExpectedReward(context._current_time + trajectory.getDistance(), context._max_workload) > 0:
                         jobFound = True
                         break
                 if jobFound:
                     break
             else:
-                for vertex, distance in context._graph.getAdjacentVertices(trajectory.vertices[-1]):
+                for vertex, distance in context._graph.getAdjacentVertices(trajectory.getVertices()[-1]):
                     if vertex in sweeped:
                         continue
-                    new_trajectory = Trajectory([*trajectory.vertices, vertex], trajectory.distance + distance)
+                    new_trajectory = Trajectory([*trajectory.getVertices(), vertex], trajectory.getDistance() + distance)
                     pr_queue.put(new_trajectory)
                     sweeped.add(vertex)
 
         if not jobFound:
-            context._eventQueue.append(WorkerEvent.COMPLETED)
+            context._event_queue.append(WorkerEvent.COMPLETED)
             return
 
-        if trajectory.distance == 0:
-            context._eventQueue.append(WorkerEvent.MOVED)
+        if trajectory.getDistance() == 0:
+            context._event_queue.append(WorkerEvent.MOVED)
             return
 
         context._trajectory = trajectory
-        context._trajectoryIndex = 1
-        context._remainingDistance = context._graph.getDistance(
-                context._trajectory.vertices[context._trajectoryIndex],
-                context._trajectory.vertices[context._trajectoryIndex-1])
+        context._trajectory_index = 1
+        context._remaining_distance = context._graph.getDistance(
+                context._trajectory.getVertices()[context._trajectory_index],
+                context._trajectory.getVertices()[context._trajectory_index-1])
 
     def onAction(self, context):
-        action = 'move {}'.format(context._trajectory.vertices[context._trajectoryIndex])
-        context._remainingDistance -= 1
-        if context._remainingDistance == 0:
-            context._currentVertex = context._trajectory.vertices[context._trajectoryIndex]
-            context._trajectoryIndex += 1
-            if context._trajectoryIndex < len(context._trajectory.vertices):
-                context._remainingDistance = context._graph.getDistance(
-                        context._trajectory.vertices[context._trajectoryIndex],
-                        context._trajectory.vertices[context._trajectoryIndex-1])
+        action = 'move {}'.format(context._trajectory.getVertices()[context._trajectory_index])
+        context._remaining_distance -= 1
+        if context._remaining_distance == 0:
+            context._current_vertex = context._trajectory.getVertices()[context._trajectory_index]
+            context._trajectory_index += 1
+            if context._trajectory_index < len(context._trajectory.getVertices()):
+                context._remaining_distance = context._graph.getDistance(
+                        context._trajectory.getVertices()[context._trajectory_index],
+                        context._trajectory.getVertices()[context._trajectory_index-1])
             else:
-                context._eventQueue.append(WorkerEvent.MOVED)
+                context._event_queue.append(WorkerEvent.MOVED)
         return action
 
 class WorkerState_Executing(State):
     def onEntry(self, context):
-        jobs = context._jobAdmin.getJobsByVertex(context._currentVertex, context._jobTypes)
+        jobs = context._job_admin.getJobsByVertex(context._current_vertex, context._job_types)
         for job in jobs:
-            if job.getExpectedReward(context._currentTime, context._maxWorkload) > 0:
-                context._targetJob = job
+            if job.getExpectedReward(context._current_time, context._max_workload) > 0:
+                context._target_job = job
                 return
 
-        context._eventQueue.append(WorkerEvent.EXECUTED)
+        context._event_queue.append(WorkerEvent.EXECUTED)
 
     def onAction(self, context):
-        targetJob = context._targetJob
+        targetJob = context._target_job
 
-        if targetJob.getExpectedReward(context._currentTime, context._maxWorkload) == 0:
-            context._eventQueue.append(WorkerEvent.EXECUTED)
+        if targetJob.getExpectedReward(context._current_time, context._max_workload) == 0:
+            context._event_queue.append(WorkerEvent.EXECUTED)
             action = 'stay'
             return action
 
-        numofTakingTasks = targetJob.takeTasks(context._currentTime, context._maxWorkload)
-        action = 'execute {} {}'.format(targetJob.jobId, numofTakingTasks)
-        if targetJob.isDone:
-            context._jobAdmin.notifyDoneJob(targetJob)
-            context._eventQueue.append(WorkerEvent.EXECUTED)
+        numofTakingTasks = targetJob.takeTasks(context._current_time, context._max_workload)
+        action = 'execute {} {}'.format(targetJob.getJobId(), numofTakingTasks)
+        if targetJob.isDone():
+            context._job_admin.notifyDoneJob(targetJob)
+            context._event_queue.append(WorkerEvent.EXECUTED)
         return action
 
     def onExit(self, context):
-        context._targetJob = None
+        context._target_job = None
 
 class WorkerState_Done(State):
     def onAction(self, context):
@@ -266,125 +254,122 @@ class WorkerState_Done(State):
 # Job
 # -----------------------------------------------------------------------------
 class Job:
-    def __init__(self, jobId, jobType, numofTasks, vertex, reward_control_points=[], priorJobIds=[]):
-        self._jobId = jobId
-        self._jobType = jobType
-        self._numofRemainingTasks = numofTasks
+    def __init__(self, jobId, job_type, numof_tasks, vertex, reward_control_points=[], prior_job_ids=[]):
+        self._job_id = jobId
+        self._job_type = job_type
+        self._remaining_tasks = numof_tasks
         self._vertex = vertex
         self._reward_control_points = reward_control_points
         self._reward_func = RewardFunction(reward_control_points)
-        self._gainedReward = 0
-        self._priorJobIds = priorJobIds
+        self._gained_reward = 0
+        self._prior_job_ids = prior_job_ids
 
     def __str__(self):
-        l1 = 'jobId: {}, jobType: {}, numofRemainingTasks: {}, vertex: {}'.format(
-                self._jobId,
-                self._jobType,
-                self._numofRemainingTasks,
+        l1 = 'jobId: {}, job_type: {}, numofRemainingTasks: {}, vertex: {}'.format(
+                self._job_id,
+                self._job_type,
+                self._remaining_tasks,
                 self._vertex)
         l2 = 'numofControlPoints: {}, controlPoints: {}'.format(
                 int(len(self._reward_control_points)/2),
                 [str(rcp) for rcp in self._reward_control_points])
-        l3 = 'numofPriorJobIds: {}, priorJobIds: {}'.format(
-                len(self._priorJobIds),
-                self._priorJobIds)
+        l3 = 'numofPriorJobIds: {}, prior_job_ids: {}'.format(
+                len(self._prior_job_ids),
+                self._prior_job_ids)
         return '\n'.join([l1, l2, l3])
 
-    @property
-    def jobId(self):
-        return self._jobId
+    def getJobId(self):
+        return self._job_id
 
-    @property
-    def jobType(self):
-        return self._jobType
+    def getJobType(self):
+        return self._job_type
 
-    @property
     def isDone(self):
-        return self._numofRemainingTasks == 0
+        return self._remaining_tasks == 0
 
-    @property
-    def vertex(self):
+    def getVertex(self):
         return self._vertex
 
-    @property
-    def priorJobIds(self):
-        return self._priorJobIds
+    def getPriorJobIds(self):
+        return self._prior_job_ids
 
-    @property
-    def gainedReward(self):
-        if self._numofRemainingTasks > 0:
+    def getGainedReward(self):
+        if self._remaining_tasks > 0:
             return 0
-        return int(self._gainedReward)
+        return int(self._gained_reward)
 
-    def getExpectedReward(self, time, numofTasksToBeExecuted):
-        if self._numofRemainingTasks > 0 and self._reward_func(time) > 0:
-            if self._numofRemainingTasks < numofTasksToBeExecuted:
-                numofTasksToBeExecuted = self._numofRemainingTasks
-            return self._reward_func(time) * numofTasksToBeExecuted
+    def getExpectedReward(self, current_time, numof_tasks_to_be_executed):
+        if self._remaining_tasks > 0 and self._reward_func(current_time) > 0:
+            if self._remaining_tasks < numof_tasks_to_be_executed:
+                numof_tasks_to_be_executed = self._remaining_tasks
+            return self._reward_func(current_time) * numof_tasks_to_be_executed
         return 0
 
-    def takeTasks(self, time, numofTaking):
-        reward = self.getExpectedReward(time, numofTaking)
+    def takeTasks(self, current_time, numof_taking):
+        reward = self.getExpectedReward(current_time, numof_taking)
         if reward <= 0:
             return 0
 
-        if numofTaking > self._numofRemainingTasks:
-            numofTaking = self._numofRemainingTasks
-        self._numofRemainingTasks -= numofTaking
-        self._gainedReward += numofTaking * reward
-        return numofTaking
+        if numof_taking > self._remaining_tasks:
+            numof_taking = self._remaining_tasks
+        self._remaining_tasks -= numof_taking
+        self._gained_reward += numof_taking * reward
+        return numof_taking
 
-    def notifyDoneJob(self, doneJob):
-        self._priorJobIds.remove(doneJob)
+    def notifyDoneJob(self, done_job):
+        self._prior_job_ids.remove(done_job)
 
 class JobAdmin:
     def __init__(self):
-        self._dictByJobId = dict()
-        self._openJobDictByVertex = collections.defaultdict(list)
-        self._numofOpenJob = 0
-        self._hiddenJobDictByJobId = dict()
-        self._numofHiddenJob = 0
-        self._subsequentJobIds = collections.defaultdict(list)
+        self._all_jobs = dict()
+        self._open_jobs_foreach_vertex = collections.defaultdict(list)
+        self._numof_open_jobs = 0
+        self._hidden_jobs = dict()
+        self._numof_hidden_jobs = 0
+        self._subsequent_job_ids = collections.defaultdict(list)
 
     def __str__(self):
-        l1 = 'numof all jobs:    {}'.format(len(self._dictByJobId))
-        l2 = 'numof open jobs:   {}'.format(self._numofOpenJob)
-        l3 = 'numof hidden jobs: {}'.format(self._numofHiddenJob)
+        l1 = 'numof all jobs:    {}'.format(len(self._all_jobs))
+        l2 = 'numof open jobs:   {}'.format(self._numof_open_jobs)
+        l3 = 'numof hidden jobs: {}'.format(self._numof_hidden_jobs)
         return '\n'.join([l1, l2, l3])
 
     def addJob(self, job):
-        self._dictByJobId[job.jobId] = job
+        self._all_jobs[job.getJobId()] = job
 
-        if len(job.priorJobIds) > 0:
-            self._hiddenJobDictByJobId[job.jobId] = job
-            self._numofHiddenJob += 1
-            for priorJobId in job.priorJobIds:
-                self._subsequentJobIds[priorJobId].append(job.jobId)
+        if len(job.getPriorJobIds()) > 0:
+            self._hidden_jobs[job.getJobId()] = job
+            self._numof_hidden_jobs += 1
+            for priorJobId in job.getPriorJobIds():
+                self._subsequent_job_ids[priorJobId].append(job.getJobId())
         else:
-            self._openJobDictByVertex[job.vertex].append(job)
-            self._numofOpenJob += 1
+            self._open_jobs_foreach_vertex[job.getVertex()].append(job)
+            self._numof_open_jobs += 1
 
-    def getJobByJobId(self, jobId):
-        return self._dictByJobId[jobId]
+    def getJobByJobId(self, job_id):
+        return self._all_jobs[job_id]
 
-    def getJobsByVertex(self, vertex, jobTypes):
+    def getJobsByVertex(self, vertex, job_types):
         result = []
-        for job in self._openJobDictByVertex[vertex]:
-            if job.jobType in jobTypes:
+        for job in self._open_jobs_foreach_vertex[vertex]:
+            if job.getJobType() in job_types:
                 result.append(job)
         return result
 
-    def notifyDoneJob(self, doneJob):
-        del self._openJobDictByVertex[doneJob.vertex]
-        self._numofOpenJob -= 1
+    def notifyDoneJob(self, done_job):
+        if self._open_jobs_foreach_vertex.get(done_job.getVertex()) is None:
+            return
 
-        for subsequentJobId in self._subsequentJobIds[doneJob.jobId]:
-            subsequentJob = self._hiddenJobDictByJobId[subsequentJobId]
-            subsequentJob.notifyDoneJob(doneJob.jobId)
-            if len(subsequentJob.priorJobIds) == 0:
-                del self._hiddenJobDictByJobId[subsequentJob.jobId]
-                self._numofHiddenJob -= 1
-                self._openJobDictByVertex[subsequentJob.vertex] = subsequentJob
+        del self._open_jobs_foreach_vertex[done_job.getVertex()]
+        self._numof_open_jobs -= 1
+
+        for subsequentJobId in self._subsequent_job_ids[done_job.getJobId()]:
+            subsequentJob = self._hidden_jobs[subsequentJobId]
+            subsequentJob.notifyDoneJob(done_job.getJobId())
+            if len(subsequentJob.getPriorJobIds()) == 0:
+                del self._hidden_jobs[subsequentJob.getJobId()]
+                self._numof_hidden_jobs -= 1
+                self._open_jobs_foreach_vertex[subsequentJob.getVertex()] = subsequentJob
 
 class ControlPoint:
     def __init__(self, t, y):
@@ -394,11 +379,9 @@ class ControlPoint:
     def __str__(self):
         return 't={}, y={}'.format(self._t, self._y)
 
-    @property
     def t(self):
         return self._t
 
-    @property
     def y(self):
         return self._y
 
@@ -407,18 +390,18 @@ class RewardFunction:
         self._control_points = control_points
 
     def __call__(self, t):
-        if t < self._control_points[0].t:
-            return self._control_points[0].y
-        elif t >= self._control_points[-1].t:
-            return self._control_points[-1].y
+        if t < self._control_points[0].t():
+            return self._control_points[0].y()
+        elif t >= self._control_points[-1].t():
+            return self._control_points[-1].y()
         else:
             i = 1
-            while t > self._control_points[i].t:
+            while t > self._control_points[i].t():
                 i += 1
-            t_prev = self._control_points[i-1].t
-            y_prev = self._control_points[i-1].y
-            t_next = self._control_points[i].t
-            y_next = self._control_points[i].y
+            t_prev = self._control_points[i-1].t()
+            y_prev = self._control_points[i-1].y()
+            t_next = self._control_points[i].t()
+            y_next = self._control_points[i].y()
             return (y_next - y_prev) * (t - t_prev) / (t_next - t_prev) + y_prev
 
 # -----------------------------------------------------------------------------
