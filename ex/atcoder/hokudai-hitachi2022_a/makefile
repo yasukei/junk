@@ -7,6 +7,9 @@ A:
 B:
 	# TODO
 
+config:
+	cd toolkit/generator; ./random_world.py -c config.toml > testcase.txt 
+
 test:
 	python3 -m unittest main_test.py
 

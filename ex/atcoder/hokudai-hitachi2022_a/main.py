@@ -45,9 +45,9 @@ class Statemachine:
         if dst == None:
             return
 
-        log.debug('{} exit'.format(type(self._current_state).__name__))
+        #log.debug('{} exit'.format(type(self._current_state).__name__))
         self._current_state.onExit(self._context)
-        log.debug('{} entry'.format(type(dst).__name__))
+        #log.debug('{} entry'.format(type(dst).__name__))
         dst.onEntry(self._context)
         self._current_state = dst
 
@@ -121,10 +121,12 @@ class Graph:
 class WorkerEvent(enum.Enum):
     MOVED = enum.auto()
     EXECUTED = enum.auto()
-    COMPLETED = enum.auto()
+    NO_JOB = enum.auto()
+    WAKEUP = enum.auto()
 
 class Worker:
-    def __init__(self, initial_vertex, max_workload, job_types, graph, job_admin):
+    def __init__(self, worker_id, initial_vertex, max_workload, job_types, graph, job_admin):
+        self._worker_id = worker_id
         self._initial_vertex = initial_vertex
         self._current_vertex = initial_vertex
         self._max_workload = max_workload
@@ -142,15 +144,16 @@ class Worker:
         sm = Statemachine(self)
         moving = WorkerState_Moving()
         executing = WorkerState_Executing()
-        done = WorkerState_Done()
+        idle = WorkerState_Idle()
         sm.addTransition(moving,    executing, WorkerEvent.MOVED)
-        sm.addTransition(moving,    done,      WorkerEvent.COMPLETED)
+        sm.addTransition(moving,    idle,      WorkerEvent.NO_JOB)
         sm.addTransition(executing, moving,    WorkerEvent.EXECUTED)
+        sm.addTransition(idle,      moving,    WorkerEvent.WAKEUP)
         sm.setInitialState(moving)
         self._sm = sm
 
     def __str__(self):
-        return f"vertex={self._initial_vertex}, max_workload={self._max_workload}, job_types={self._job_types}"
+        return f"worker_id={self._worker_id}, vertex={self._initial_vertex}, max_workload={self._max_workload}, job_types={self._job_types}"
 
     def getAction(self, current_time):
         if not self._started:
@@ -191,7 +194,7 @@ class WorkerState_Moving(State):
                     sweeped.add(vertex)
 
         if not jobFound:
-            context._event_queue.append(WorkerEvent.COMPLETED)
+            context._event_queue.append(WorkerEvent.NO_JOB)
             return
 
         if trajectory.getDistance() == 0:
@@ -246,8 +249,14 @@ class WorkerState_Executing(State):
     def onExit(self, context):
         context._target_job = None
 
-class WorkerState_Done(State):
+class WorkerState_Idle(State):
+    def onEntry(self, context):
+        self._counter = 0
+
     def onAction(self, context):
+        self._counter += 1
+        if self._counter >= 5:
+            context._event_queue.append(WorkerEvent.WAKEUP)
         action = 'stay'
         return action
 
@@ -328,6 +337,7 @@ class JobAdmin:
         self._hidden_jobs = dict()
         self._numof_hidden_jobs = 0
         self._subsequent_job_ids = collections.defaultdict(list)
+        self._next_open_jobs = []
 
     def __str__(self):
         l1 = 'numof all jobs:    {}'.format(len(self._all_jobs))
@@ -368,9 +378,15 @@ class JobAdmin:
             subsequentJob = self._hidden_jobs[subsequentJobId]
             subsequentJob.notifyDoneJob(done_job.getJobId())
             if len(subsequentJob.getPriorJobIds()) == 0:
-                del self._hidden_jobs[subsequentJob.getJobId()]
-                self._numof_hidden_jobs -= 1
-                self._open_jobs_foreach_vertex[subsequentJob.getVertex()] = subsequentJob
+                self._next_open_jobs.append(subsequentJob)
+
+    def advanceTime(self):
+        for job in self._next_open_jobs:
+            del self._hidden_jobs[job.getJobId()]
+            self._numof_hidden_jobs -= 1
+            self._open_jobs_foreach_vertex[job.getVertex()].append(job)
+            self._numof_open_jobs += 1
+        self._next_open_jobs.clear()
 
 class ControlPoint:
     def __init__(self, t, y):
@@ -430,11 +446,11 @@ class Environment:
         self._Nworker = int(Nworker)
         self._workers = []
         self._jobAdmin = JobAdmin()
-        for _ in range(self._Nworker):
+        for i in range(self._Nworker):
             v, Lmax, Njobtype, *jobTypes = input().split()
             v, Lmax, Njobtype  = int(v), int(Lmax), int(Njobtype)
             jobTypes = list(map(int, jobTypes))
-            worker = Worker(v, Lmax, jobTypes, self._graph, self._jobAdmin)
+            worker = Worker(i, v, Lmax, jobTypes, self._graph, self._jobAdmin)
             self._workers.append(worker)
 
         # Job
@@ -459,19 +475,22 @@ class Environment:
         log.debug(f"Ne:        {self._Ne}")
         log.debug(f"Nworker:   {self._Nworker}")
         for i in range(self._Nworker):
-            log.debug(f"  worker{i}: {self._workers[i]}")
+            log.debug(f"             {self._workers[i]}")
         log.debug(f"Njob:      {self._Njob}")
 
     def run(self):
         # Output
         for t in range(1, self._Tmax+1):
-            for worker in self._workers:
-                action = worker.getAction(t)
-                log.debug(f"time: {t:03}, action: {action}")
+            for i in range(self._Nworker):
+                action = self._workers[i].getAction(t)
+                log.debug(f"time={t:03}, worker={i}, action={action}")
                 print(action, flush=True)
+            self._jobAdmin.advanceTime()
 
         # Score
         score, = input().split()
+        self._score = int(score)
+        log.debug(f"score:      {self._score}")
 
 # -----------------------------------------------------------------------------
 # main
