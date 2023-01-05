@@ -45,9 +45,7 @@ class Statemachine:
         if dst == None:
             return
 
-        #log.debug('{} exit'.format(type(self._current_state).__name__))
         self._current_state.onExit(self._context)
-        #log.debug('{} entry'.format(type(dst).__name__))
         dst.onEntry(self._context)
         self._current_state = dst
 
@@ -59,12 +57,22 @@ class Statemachine:
 # -----------------------------------------------------------------------------
 class Edge:
     def __init__(self, u, v, d):
+        assert u != v
+        assert d > 0
+
         self._u = u
         self._v = v
         self._d = d
 
     def __str__(self):
-        return ' '.join(list(map(str, [self.u, self.v, self.d])))
+        return 'u={}, v={}, d={}'.format(self._u, self._v, self._d)
+
+    def __eq__(self, other):
+        if self._d != other._d:
+            return false
+        result1 = self._u == other._u and self._v == other._v
+        result2 = self._u == other._v and self._v == other._u
+        return result1 or result2
 
     def u(self):
         return self._u
@@ -92,7 +100,7 @@ class Trajectory:
 class Graph:
     Nv_MAX = 2000
 
-    def __init__(self, edges=[]):
+    def __init__(self, edges):
         self._adjacent_vertices = collections.defaultdict(list)
         self._trajectory_matrix = [[None for _ in range(Graph.Nv_MAX + 1)] for _ in range(Graph.Nv_MAX + 1)]
         for edge in edges:
@@ -114,6 +122,236 @@ class Graph:
             raise NotImplemented()
         return self._trajectory_matrix[vertex1][vertex2].getDistance()
 
+class GridGraph:
+    GRID_SIZE = 2001 # must be odd number
+
+    def __init__(self, edges):
+        self._grid = [[None for _ in range(GridGraph.GRID_SIZE + 1)] for _ in range(GridGraph.GRID_SIZE + 1)]
+        self._position = dict()
+        self._allVertices = set()
+        self._connectedEdges = collections.defaultdict(list)
+        self._distance = dict()
+        self._1connectionVertex = set()
+        self._2connectionVertex = set()
+        self._3connectionVertex = set()
+        self._4connectionVertex = set()
+
+        for edge in edges:
+            self._addEdge(edge)
+
+        #self._connection4s |= set()
+        #for vertex in self._allVertices:
+        #    if vertex in self._4connectionVertex:
+        #        self._connection4s |= Connection4(vertex, self._connectedEdges[vertex])
+        #    else:
+        #        # TODO
+        #        pass
+
+        result = False
+        for vertex in self._4connectionVertex:
+            for edge in self._connectedEdges[vertex]:
+                result = self._exploreForOrigin(edge.v(), edge.d(), 0, 1, [vertex])
+                if result:
+                    break
+            if result:
+                break
+        self.show()
+
+        # TODO
+
+    def _exploreForOrigin(self, vertex, edge_length, current_length, depth, trajectory):
+        if depth == 4:
+            if vertex == trajectory[0]:
+                # found closed loop
+
+                trajectory.append(vertex)
+                print('trajectory: {}'.format(trajectory), file=sys.stderr)
+                index = 1
+
+                # add vertex on 1st edge
+                length = 0
+                while length < edge_length:
+                    u = trajectory[index-1]
+                    v = trajectory[index]
+                    d = self._distance[(u, v)]
+                    length += d
+                    self._addVertexToGrid(v, length, 0)
+                    index += 1
+
+                # add vertex on 2nd edge
+                length = 0
+                while length < edge_length:
+                    u = trajectory[index-1]
+                    v = trajectory[index]
+                    d = self._distance[(u, v)]
+                    length += d
+                    self._addVertexToGrid(v, edge_length, length)
+                    index += 1
+
+                # add vertex on 3rd edge
+                length = 0
+                while length < edge_length:
+                    u = trajectory[index-1]
+                    v = trajectory[index]
+                    d = self._distance[(u, v)]
+                    length += d
+                    self._addVertexToGrid(v, edge_length - length, edge_length)
+                    index += 1
+
+                # add vertex on 4th edge
+                length = 0
+                while length < edge_length:
+                    u = trajectory[index-1]
+                    v = trajectory[index]
+                    d = self._distance[(u, v)]
+                    length += d
+                    self._addVertexToGrid(v, 0, edge_length - length)
+                    index += 1
+                return True
+            return False
+
+        trajectory.append(vertex)
+        for edge in self._connectedEdges[vertex]:
+            if edge.v() == trajectory[-2]:
+                continue
+
+            result = False
+            length = edge.d() + current_length
+            if length < edge_length:
+                result = self._exploreForOrigin(edge.v(), edge.d(), length, depth, trajectory)
+            elif length == edge_length:
+                result = self._exploreForOrigin(edge.v(), edge.d(), 0, depth + 1, trajectory)
+            if result:
+                return True
+        trajectory.pop()
+        return False
+
+
+    def _addEdge(self, edge):
+        u = edge.u()
+        v = edge.v()
+        d = edge.d()
+        self._addVertex(u)
+        self._addVertex(v)
+        self._allVertices.add(u)
+        self._allVertices.add(v)
+        self._connectedEdges[u].append(Edge(u, v, d))
+        self._connectedEdges[v].append(Edge(v, u, d))
+        self._distance[(u, v)] = d
+        self._distance[(v, u)] = d
+
+    def _addVertex(self, vertex):
+        if vertex in self._1connectionVertex:
+            self._1connectionVertex.remove(vertex)
+            self._2connectionVertex.add(vertex)
+        elif vertex in self._2connectionVertex:
+            self._2connectionVertex.remove(vertex)
+            self._3connectionVertex.add(vertex)
+        elif vertex in self._3connectionVertex:
+            self._3connectionVertex.remove(vertex)
+            self._4connectionVertex.add(vertex)
+        else:
+            self._1connectionVertex.add(vertex)
+
+    def _addVertexToGrid(self, vertex, x, y):
+        assert self._grid[x][y] == None
+        assert self._position.get(vertex) == None
+        self._grid[x][y] = vertex
+        self._position[vertex] = (x, y)
+
+    def show(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        for x, y in self._position.values():
+            print('x={}, y={}'.format(x, y), file=sys.stderr)
+            vertex = self._grid[x][y]
+            ax.text(x, y, vertex, va='bottom', ha='left', fontsize=16)
+            ax.plot(x, y, marker='o', color='b')
+        plt.show()
+
+class Connection4:
+    def __init__(self, center, edges):
+        assert len(edges) == 4
+        for edge in edges:
+            assert edge.u() == center
+
+        self._center = center
+        self._edges = edges
+
+    def center(self):
+        return self._center
+
+    def edges(self):
+        return self._edges
+
+class Grid:
+    SIZE = 2001 # must be odd number
+
+    def __init__(self):
+        self._grid = [[None for _ in range(Grid.SIZE + 1)] for _ in range(Grid.SIZE + 1)]
+        self._grid_edges = [[None for _ in range(Grid.SIZE + 1)] for _ in range(Grid.SIZE + 1)]
+        self._remaining_vertices = collections.defaultdict(list)
+        self._remaining_edges = dict()
+        self._floating_connection4s = set()
+
+        self._positionDictByVertex = dict()
+
+    def addConnection4(self, connection4):
+        if self._grid[0][0] == None:
+            self._grid[0][0] = connection4.center()
+            self._grid_edges[0][0] = connection4.edges()
+            self._positionDictByVertex[connection4.center()] = (0, 0)
+            for edge in connection4.edges():
+                self._remaining_vertices[edge.v()].append(edge)
+            return
+
+        vertex1 = None
+        vertex2 = None
+        distance1 = 0
+        distance2 = 0
+        for edge in connection4.edges():
+            if self._remaining_vertices.get(edge.v()):
+                if vertex1 == None:
+                    vertex1 = edge.v()
+                    distance1 = edge.d()
+                else:
+                    vertex2 = edge.v()
+                    distance2 = edge.d()
+        if vertex1 == None or vertex2 == None:
+            self._floating_connection4s |= connection4
+            return
+
+        existing_edges1 = self._remaining_vertices[vertex1]
+        existing_edges2 = self._remaining_vertices[vertex2]
+
+        edge1 = None
+        for edge in self._grid_edges[0][0]:
+            if edge.v() == vertex1:
+                edge1 = edge
+                break
+        assert edge1 != None
+        assert edge1.d() == distance2
+        edge2 = None
+        for edge in self._grid_edges[0][0]:
+            if edge.v() == vertex2:
+                edge2 = edge
+                break
+        assert edge2 != None
+        assert edge2.d() == distance1
+
+        self._grid[edge1.d()][0] = vertex1
+        self._grid[0][edge2.d()] = vertex2
+        self._grid[edge1.d()][edge2.d()] = connection4.center()
+        self._positionDictByVertex[vertex1] = (edge1.d(), 0)
+        self._positionDictByVertex[vertex2] = (0, edge2.d())
+        self._positionDictByVertex[connection4.center()] = (edge1.d(), edge2.d())
+        return
+
+
+        
+
+            
 
 # -----------------------------------------------------------------------------
 # Worker
@@ -420,6 +658,22 @@ class RewardFunction:
             y_next = self._control_points[i].y()
             return (y_next - y_prev) * (t - t_prev) / (t_next - t_prev) + y_prev
 
+# -----------------------------------------------------------------------------
+# Planner
+# -----------------------------------------------------------------------------
+class Planner:
+    def __init__(self, Tmax, graph, workers, jobAdmin):
+        self._Tmax = Tmax
+        self._graph = graph
+        self._workers = workers
+        self._jobAdmin = jobAdmin
+
+    def makePlan(self):
+        return plan
+
+# -----------------------------------------------------------------------------
+# Environment
+# -----------------------------------------------------------------------------
 class Environment:
     def __init__(self):
         self._start_time = time.perf_counter()
@@ -439,6 +693,8 @@ class Environment:
             edge = Edge(int(u), int(v), int(d))
             edges.append(edge)
         self._graph = Graph(edges)
+        self._gridGraph = GridGraph(edges)
+        exit()
 
         # Worker
         Nworker, = input().split()
