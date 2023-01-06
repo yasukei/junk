@@ -1,6 +1,7 @@
 import collections
 import enum
 import logging as log
+import math
 import queue
 import random
 import sys
@@ -602,6 +603,7 @@ class WorkerState_Moving(State):
         sweeped.add(context._current_vertex)
 
         jobFound = False
+        job_list = list()
         reward_rating_list = list()
         trajectory_list = list()
         while not pr_queue.empty():
@@ -613,6 +615,7 @@ class WorkerState_Moving(State):
                     reward = job.getExpectedReward(context._current_time + trajectory.getDistance(), context._max_workload)
                     if reward > 0:
                         jobFound = True
+                        job_list.append(job)
                         reward_rating_list.append(reward / (1 + trajectory.getDistance()))
                         trajectory_list.append(trajectory)
                         break
@@ -625,7 +628,7 @@ class WorkerState_Moving(State):
                 sweeped.add(vertex)
 
             #if jobFound:
-            if len(reward_rating_list) > 20:
+            if len(reward_rating_list) > 30:
                 break
 
         if not jobFound:
@@ -634,6 +637,7 @@ class WorkerState_Moving(State):
             return
 
         best = reward_rating_list.index(max(reward_rating_list))
+        context._target_job = job_list[best]
         trajectory = trajectory_list[best]
 
         if trajectory.getDistance() == 0:
@@ -661,15 +665,6 @@ class WorkerState_Moving(State):
         return action
 
 class WorkerState_Executing(State):
-    def onEntry(self, context):
-        jobs = context._job_admin.getJobsByVertex(context._current_vertex, context._job_types)
-        for job in jobs:
-            if job.getExpectedReward(context._current_time, context._max_workload) > 0:
-                context._target_job = job
-                return
-
-        context._event_queue.append(WorkerEvent.EXECUTED)
-
     def onAction(self, context):
         targetJob = context._target_job
 
@@ -736,6 +731,11 @@ class Job:
     def isDone(self):
         return self._remaining_tasks == 0
 
+    def isOpen(self, current_time):
+        if self._remaining_tasks == 0 or self._reward_func(current_time) == 0:
+            return False
+        return True
+
     def getVertex(self):
         return self._vertex
 
@@ -747,12 +747,15 @@ class Job:
             return 0
         return int(self._gained_reward)
 
-    def getExpectedReward(self, current_time, numof_tasks_to_be_executed):
-        if self._remaining_tasks > 0 and self._reward_func(current_time) > 0:
-            if self._remaining_tasks < numof_tasks_to_be_executed:
-                numof_tasks_to_be_executed = self._remaining_tasks
-            return self._reward_func(current_time) * numof_tasks_to_be_executed
-        return 0
+    def getExpectedReward(self, start_time, workload_per_time):
+        time_to_execute = math.ceil(self._remaining_tasks / workload_per_time)
+        end_time = start_time + time_to_execute - 1
+        if not self.isOpen(start_time) or not self.isOpen(end_time):
+            return 0
+
+        if self._remaining_tasks < workload_per_time:
+            workload_per_time = self._remaining_tasks
+        return self._reward_func.getTotalReward(start_time, end_time) * workload_per_time
 
     def takeTasks(self, current_time, numof_taking):
         reward = self.getExpectedReward(current_time, numof_taking)
@@ -856,18 +859,11 @@ class RewardFunction:
             y_next = self._control_points[i].y()
             return (y_next - y_prev) * (t - t_prev) / (t_next - t_prev) + y_prev
 
-# -----------------------------------------------------------------------------
-# Planner
-# -----------------------------------------------------------------------------
-class Planner:
-    def __init__(self, Tmax, graph, workers, jobAdmin):
-        self._Tmax = Tmax
-        self._graph = graph
-        self._workers = workers
-        self._jobAdmin = jobAdmin
-
-    def makePlan(self):
-        return plan
+    def getTotalReward(self, start_time, end_time):
+        reward = 0
+        for t in range(start_time, end_time+1):
+            reward += self(t)
+        return reward
 
 # -----------------------------------------------------------------------------
 # Environment
