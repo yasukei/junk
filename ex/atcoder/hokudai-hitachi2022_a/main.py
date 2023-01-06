@@ -8,8 +8,6 @@ import random
 import sys
 import time
 
-import numpy as np
-
 # -----------------------------------------------------------------------------
 # Utility
 # -----------------------------------------------------------------------------
@@ -79,13 +77,6 @@ class Edge:
 
     def __str__(self):
         return 'u={}, v={}, d={}'.format(self._u, self._v, self._d)
-
-    def __eq__(self, other):
-        if self._d != other._d:
-            return false
-        result1 = self._u == other._u and self._v == other._v
-        result2 = self._u == other._v and self._v == other._u
-        return result1 or result2
 
     def u(self):
         return self._u
@@ -367,14 +358,13 @@ class JobAdmin:
         self._hidden_jobs = dict()
         self._done_jobs = list()
         self._subsequent_job_ids = collections.defaultdict(list)
-        self._next_open_jobs = []
+        self._next_open_jobs = list()
 
     def __str__(self):
-        numof_open_jobs = 0
-        for open_jobs in self._open_jobs_foreach_vertex.values():
-            numof_open_jobs += len(open_jobs)
+        numof_open_jobs = sum([len(open_jobs) for open_jobs in self._open_jobs_foreach_vertex.values()])
 
-        return f"all={len(self._all_jobs)}, open={numof_open_jobs}, hidden={len(self._hidden_jobs)}, done={len(self._done_jobs)}"
+        return 'all={}, open={}, hidden={}, done={}'.format(
+                len(self._all_jobs), numof_open_jobs, len(self._hidden_jobs), len(self._done_jobs))
 
     def addJob(self, job):
         self._all_jobs[job.getJobId()] = job
@@ -390,7 +380,7 @@ class JobAdmin:
         return self._all_jobs[job_id]
 
     def getJobsByVertex(self, vertex, job_types):
-        result = []
+        result = list()
         for job in self._open_jobs_foreach_vertex[vertex]:
             if job.getJobType() in job_types:
                 result.append(job)
@@ -457,7 +447,7 @@ class Environment:
         Nv, Ne = input().split()
         self._Nv = int(Nv)
         self._Ne = int(Ne)
-        edges = []
+        edges = list()
         for _ in range(self._Ne):
             u, v, d = input().split()
             edge = Edge(int(u), int(v), int(d))
@@ -467,7 +457,7 @@ class Environment:
         # Worker
         Nworker, = input().split()
         self._Nworker = int(Nworker)
-        self._workers = []
+        self._workers = list()
         self._jobAdmin = JobAdmin()
         for i in range(self._Nworker):
             v, Lmax, Njobtype, *jobTypes = input().split()
