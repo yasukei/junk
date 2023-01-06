@@ -102,29 +102,47 @@ class Trajectory:
         return self._distance
 
 class Graph:
-    MATRIX_SIZE = 2001
-
     def __init__(self, edges):
-        self._adjacent_vertices = collections.defaultdict(list)
-        self._trajectory_matrix = [[None for _ in range(Graph.MATRIX_SIZE)] for _ in range(Graph.MATRIX_SIZE)]
+        self._edge = collections.defaultdict(list)
+        self._trajectory = dict()
+
         for edge in edges:
             self._addEdge(edge)
 
     def _addEdge(self, edge):
         u, v, d = edge.u(), edge.v(), edge.d()
-        self._adjacent_vertices[u].append((v, d))
-        self._adjacent_vertices[v].append((u, d))
+        edge_v_u = Edge(v, u, d)
+        self._edge[u].append(edge)
+        self._edge[v].append(edge_v_u)
 
-        self._trajectory_matrix[u][v] = Trajectory([u, v], d)
-        self._trajectory_matrix[v][u] = Trajectory([v, u], d)
+        self._trajectory[(u, v)] = Trajectory2([edge])
+        self._trajectory[(v, u)] = Trajectory2([edge_v_u])
 
     def getAdjacentVertices(self, vertex):
-        return self._adjacent_vertices[vertex]
+        vertices = list()
+        for edge in self._edge[vertex]:
+            vertices.append((edge.v(), edge.d()))
+        return vertices
 
     def getDistance(self, vertex1, vertex2):
-        if self._trajectory_matrix[vertex1][vertex2] is None:
+        if not self._trajectory.get((vertex1, vertex2)):
+            # TODO: here!!!!
             raise NotImplemented()
-        return self._trajectory_matrix[vertex1][vertex2].getDistance()
+        return self._trajectory[(vertex1, vertex2)].getDistance()
+
+class Trajectory2:
+    def __init__(self, edges):
+        self._edges = edges
+        self._distance = sum([edge.d() for edge in edges])
+
+    def __lt__(self, other):
+        return self._distance < other._distance
+
+    def getVertices(self):
+        return self._vertices
+
+    def getDistance(self):
+        return self._distance
 
 
 # -----------------------------------------------------------------------------
