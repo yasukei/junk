@@ -1,3 +1,4 @@
+import bisect
 import collections
 import enum
 import logging as log
@@ -12,6 +13,17 @@ import numpy as np
 # -----------------------------------------------------------------------------
 # Utility
 # -----------------------------------------------------------------------------
+import pstats
+import cProfile
+
+def execution_speed_lib(func):
+    def wrapper(*args, **kwargs):
+        pr = cProfile.Profile()
+        pr.runcall(func, *args, **kwargs)
+
+        stats = pstats.Stats(pr)
+        stats.print_stats()
+    return wrapper
 
 # -----------------------------------------------------------------------------
 # Statemachine
@@ -277,13 +289,12 @@ class WorkerState_Idle(State):
 # Job
 # -----------------------------------------------------------------------------
 class Job:
-    def __init__(self, jobId, job_type, numof_tasks, vertex, reward_control_points=[], prior_job_ids=[]):
+    def __init__(self, jobId, job_type, numof_tasks, vertex, rewards, prior_job_ids):
         self._job_id = jobId
         self._job_type = job_type
         self._remaining_tasks = numof_tasks
         self._vertex = vertex
-        self._reward_control_points = reward_control_points
-        self._reward_func = RewardFunction(reward_control_points)
+        self._reward_func = RewardFunction(rewards)
         self._gained_reward = 0
         self._prior_job_ids = prior_job_ids
 
@@ -293,9 +304,7 @@ class Job:
                 self._job_type,
                 self._remaining_tasks,
                 self._vertex)
-        l2 = 'numofControlPoints: {}, controlPoints: {}'.format(
-                int(len(self._reward_control_points)/2),
-                [str(rcp) for rcp in self._reward_control_points])
+        l2 = 'rewards: {}'.format(self._reward_func)
         l3 = 'numofPriorJobIds: {}, prior_job_ids: {}'.format(
                 len(self._prior_job_ids),
                 self._prior_job_ids)
@@ -406,44 +415,31 @@ class JobAdmin:
             self._open_jobs_foreach_vertex[job.getVertex()].append(job)
         self._next_open_jobs.clear()
 
-class ControlPoint:
-    def __init__(self, t, y):
-        self._t = t
-        self._y = y
+class RewardFunction:
+    def __init__(self, rewards):
+        self._t = rewards[::2]
+        self._y = rewards[1::2]
 
     def __str__(self):
-        return 't={}, y={}'.format(self._t, self._y)
-
-    def t(self):
-        return self._t
-
-    def y(self):
-        return self._y
-
-class RewardFunction:
-    def __init__(self, control_points=[]):
-        self._control_points = control_points
+        return ''.join(['t={}, y={},'.format(t, y) for t, y in zip(self._t, self._y)])
 
     def __call__(self, t):
-        if t < self._control_points[0].t():
-            return self._control_points[0].y()
-        elif t >= self._control_points[-1].t():
-            return self._control_points[-1].y()
+        if t < self._t[0]:
+            return self._y[0]
+        elif t >= self._t[-1]:
+            return self._y[-1]
         else:
-            i = 1
-            while t > self._control_points[i].t():
-                i += 1
-            t_prev = self._control_points[i-1].t()
-            y_prev = self._control_points[i-1].y()
-            t_next = self._control_points[i].t()
-            y_next = self._control_points[i].y()
+            i = bisect.bisect_left(self._t, t)
+            t_prev = self._t[i-1]
+            y_prev = self._y[i-1]
+            t_next = self._t[i]
+            y_next = self._y[i]
             return (y_next - y_prev) * (t - t_prev) / (t_next - t_prev) + y_prev
 
     def getTotalReward(self, start_time, end_time):
-        reward = 0
-        for t in range(start_time, end_time+1):
-            reward += self(t)
-        return reward
+        ts = range(start_time, end_time+1)
+        rewards = list(map(self, ts))
+        return sum(rewards)
 
 # -----------------------------------------------------------------------------
 # Environment
@@ -492,8 +488,7 @@ class Environment:
             Ndepend, *priorJobIds = input().split()
             Ndepend = int(Ndepend)
             priorJobIds = list(map(int, priorJobIds))
-            control_points = [ControlPoint(rewards[2*i], rewards[2*i+1]) for i in range(Nreward)]
-            job = Job(jobId, jobType, Ntask, vertex, control_points, priorJobIds)
+            job = Job(jobId, jobType, Ntask, vertex, rewards, priorJobIds)
             self._jobAdmin.addJob(job)
 
         # log basic info
@@ -526,6 +521,7 @@ class Environment:
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
+@execution_speed_lib
 def main():
     env = Environment()
     env.readInput()
