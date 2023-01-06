@@ -409,11 +409,24 @@ class RewardFunction:
     def __init__(self, rewards):
         self._t = rewards[::2]
         self._y = rewards[1::2]
+        self._cache = dict()
+
+        self._cumulative_sum = [0] * (self._t[-1]+2)
+        for t in range(self._t[0], self._t[-1]+1):
+            self._cumulative_sum[t+1] = self._cumulative_sum[t] + self._callWithoutCache(t)
 
     def __str__(self):
         return ''.join(['t={}, y={},'.format(t, y) for t, y in zip(self._t, self._y)])
 
     def __call__(self, t):
+        if self._cache.get(t):
+            return self._cache[t]
+
+        y = self._callWithoutCache(t)
+        self._cache[t] = y
+        return y
+
+    def _callWithoutCache(self, t):
         if t < self._t[0]:
             return self._y[0]
         elif t >= self._t[-1]:
@@ -427,9 +440,7 @@ class RewardFunction:
             return (y_next - y_prev) * (t - t_prev) / (t_next - t_prev) + y_prev
 
     def getTotalReward(self, start_time, end_time):
-        ts = range(start_time, end_time+1)
-        rewards = list(map(self, ts))
-        return sum(rewards)
+        return self._cumulative_sum[end_time+1] - self._cumulative_sum[start_time]
 
 # -----------------------------------------------------------------------------
 # Environment
