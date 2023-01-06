@@ -1,5 +1,5 @@
 
-all: A
+all: A_default
 
 A:
 	cd toolkit; ./judge.sh generator/testcase.txt visualizer/default.json python3 ../main.py
@@ -9,6 +9,7 @@ B:
 
 A_default:
 	cd toolkit; ./judge.sh generator/testcase_A_default.txt visualizer/default.json python3 ../main.py
+	#cd toolkit; ./judge.sh generator/testcase_A_default.txt visualizer/default.json python3 ../A_DQN.py
 
 A_max:
 	cd toolkit; ./judge.sh generator/testcase_A_max.txt visualizer/default.json python3 ../main.py
