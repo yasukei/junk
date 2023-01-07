@@ -1,6 +1,7 @@
 import bisect
 import collections
 import enum
+import functools
 import logging as log
 import math
 import queue
@@ -84,20 +85,6 @@ class Edge:
     def d(self):
         return self._d
 
-class Trajectory:
-    def __init__(self, vertices, distance):
-        self._vertices = vertices
-        self._distance = distance
-
-    def __lt__(self, other):
-        return self._distance < other._distance
-
-    def getVertices(self):
-        return self._vertices
-
-    def getDistance(self):
-        return self._distance
-
 class Graph:
     def __init__(self, edges):
         self._edge = dict()
@@ -119,10 +106,12 @@ class Graph:
         self._vertices.add(u)
         self._vertices.add(v)
 
-        self._trajectory[(u, v)] = Trajectory2([edge])
-        self._trajectory[(v, u)] = Trajectory2([edge_v_u])
-        self._trajectory[(u, u)] = Trajectory2([Edge(u, u, 0)])
-        self._trajectory[(v, v)] = Trajectory2([Edge(v, v, 0)])
+        self._trajectory[(u, v)] = Trajectory([edge])
+        self._trajectory[(v, u)] = Trajectory([edge_v_u])
+        if self._trajectory.get((u, u)) is None:
+            self._trajectory[(u, u)] = Trajectory([Edge(u, u, 0)])
+        if self._trajectory.get((v, v)) is None:
+            self._trajectory[(v, v)] = Trajectory([Edge(v, v, 0)])
 
     def getTrajectory(self, start, goal):
         if self._trajectory.get((start, goal)):
@@ -163,7 +152,7 @@ class Graph:
 
     def _createReversedTrajectory(self, trajectory):
         reversed_edges = [self._edge[(edge.v(), edge.u())] for edge in reversed(trajectory.getEdges())]
-        return Trajectory2(reversed_edges)
+        return Trajectory(reversed_edges)
 
     def getEdges(self, vertex):
         return self._edges[vertex]
@@ -179,7 +168,7 @@ class Graph:
             raise NotImplemented()
         return self._trajectory[(vertex1, vertex2)].getDistance()
 
-class Trajectory2:
+class Trajectory:
     def __init__(self, edges):
         for i in range(1, len(edges)):
             assert edges[i-1].v() == edges[i].u()
@@ -210,17 +199,11 @@ class Trajectory2:
     def createNewTrajectory(self, edge):
         edges = [edge for edge in self._edges]
         edges.append(edge)
-        return Trajectory2(edges)
+        return Trajectory(edges)
 
 # -----------------------------------------------------------------------------
 # Worker
 # -----------------------------------------------------------------------------
-class WorkerEvent(enum.Enum):
-    MOVED = enum.auto()
-    EXECUTED = enum.auto()
-    NO_JOB = enum.auto()
-    WAKEUP = enum.auto()
-
 class Worker:
     def __init__(self, worker_id, initial_vertex, max_workload, job_types, graph, job_admin):
         self._worker_id = worker_id
@@ -231,230 +214,212 @@ class Worker:
         self._graph = graph
         self._job_admin = job_admin
 
-        self._event_queue = collections.deque()
-        self._trajectory = None
-        self._trajectory_index = None
-        self._remaining_distance = None
-        self._target_job = None
-        self._current_time = 0
-        self._started = False
-        sm = Statemachine(self)
-        moving = WorkerState_Moving()
-        executing = WorkerState_Executing()
-        idle = WorkerState_Idle()
-        sm.addTransition(moving,    executing, WorkerEvent.MOVED)
-        sm.addTransition(moving,    idle,      WorkerEvent.NO_JOB)
-        sm.addTransition(executing, moving,    WorkerEvent.EXECUTED)
-        sm.addTransition(idle,      moving,    WorkerEvent.WAKEUP)
-        sm.setInitialState(moving)
-        self._sm = sm
-
     def __str__(self):
         return f"worker_id={self._worker_id}, vertex={self._initial_vertex}, max_workload={self._max_workload}, job_types={self._job_types}"
 
-    def makePlan(self, Tmax):
-        plan = list()
+    def makeSchedule(self, Tmax):
+        schedule = Schedule(Tmax)
         def currentTime():
-            return len(plan) + 1
+            return schedule.getEndTime()
         current_vertex = self._initial_vertex
 
+        while currentTime() <= Tmax:
+            current_vertex, added = Staff.planMaxRewardJob(self._graph, self._job_admin, schedule, self._job_types, self._max_workload, current_vertex)
+            log.debug('currentTime: {}'.format(currentTime()))
+            log.debug(schedule)
+            if not added:
+                stay_time = min(5, Tmax - currentTime() + 1)
+                schedule += TimeSlot.StayAction(currentTime(), stay_time)
+                continue
+
+        schedule.fillStayActionInBlankTime()
+        return schedule.makeActionStrings()
+
+class Staff:
+    @staticmethod
+    def planMaxRewardJob(graph, job_admin, schedule, job_types, workload, current_vertex):
+        def currentTime():
+            return schedule.getEndTime()
         rating_list = list()
         others_list = list()
 
-        while len(plan) < Tmax:
-            log.debug('len(plan)={}'.format(len(plan)))
-            rating_list.clear()
-            others_list.clear()
-
-            jobs = self._job_admin.getOpenJobs()
-            for job in jobs:
-                if job.getJobType() not in self._job_types:
-                    continue
-
-                trajectory = self._graph.getTrajectory(current_vertex, job.getVertex())
-                travel_time = trajectory.getDistance()
-                reward, execute_time = job.getExpectedReward(currentTime() + travel_time, self._max_workload)
-                if reward == 0:
-                    continue
-                #log.debug('currentTime={}, travel_time={}, reward={}, execute_time={}'.format(currentTime(), travel_time, reward, execute_time))
-                rating = reward / (travel_time + execute_time)
-
-                rating_list.append(rating)
-                others_list.append((trajectory, job))
-
-            if len(rating_list) == 0:
-                stay_time = min(5, Tmax - currentTime() + 1)
-                plan += self._makeStayAction(stay_time)
+        jobs = job_admin.getOpenJobs()
+        for job in jobs:
+            if job.getJobType() not in job_types:
                 continue
 
-            best_index = rating_list.index(max(rating_list))
-            trajectory, job = others_list[best_index]
-            self._job_admin.reserveJob(job)
+            trajectory = graph.getTrajectory(current_vertex, job.getVertex())
+            travel_time = trajectory.getDistance()
+            reward, execute_time = job.getExpectedReward(currentTime() + travel_time, workload)
+            if reward == 0:
+                continue
+            #log.debug('currentTime={}, travel_time={}, reward={}, execute_time={}'.format(currentTime(), travel_time, reward, execute_time))
+            rating = reward / (travel_time + execute_time)
 
-            plan += self._makeMoveAction(trajectory)
-            current_vertex = trajectory.getEndVertex()
+            rating_list.append(rating)
+            others_list.append((trajectory, job))
 
-            plan += self._makeExecuteAction(job, currentTime(), self._max_workload)
-            self._job_admin.notifyDoneJob(job)
-            self._job_admin.advanceTime()
+        if len(rating_list) == 0:
+            return current_vertex, False
 
-        return plan
-            
-    def _makeStayAction(self, stay_time):
-        return ['stay'] * stay_time
+        best_index = rating_list.index(max(rating_list))
+        trajectory, job = others_list[best_index]
+        job_admin.reserveJob(job)
 
-    def _makeMoveAction(self, trajectory):
+        schedule += TimeSlot.MoveAction(currentTime(), trajectory)
+        current_vertex = trajectory.getEndVertex()
+
+        task_list = _makeExecuteAction(job, currentTime(), workload)
+        schedule += TimeSlot.ExecuteAction(currentTime(), job.getJobId(), task_list)
+        job_admin.notifyDoneJob(job)
+        job_admin.advanceTime()
+        return current_vertex, True
+
+def _makeExecuteAction(job, current_time, workload):
+    task_list = list()
+    while True:
+        numof_tasks = job.takeTasks(current_time + len(task_list), workload)
+        if numof_tasks == 0:
+            break
+        task_list.append(numof_tasks)
+    return task_list
+
+
+class Schedule:
+    START_TIME = 1
+
+    def __init__(self, Tmax):
+        self._Tmax = Tmax
+        self._time_slots = list()
+
+    def __str__(self):
+        s = ['Schedule:']
+        for ts in self._time_slots:
+            s.append(str(ts))
+        return '\n'.join(s)
+
+    def __iadd__(self, new_time_slot):
+        self.assignTimeSlot(new_time_slot)
+        return self
+
+    def assignTimeSlot(self, new_time_slot):
+        index = None
+
+        current = 1
+        for i, ts in enumerate(self._time_slots):
+            if current <= new_time_slot.getStartTime() and new_time_slot.getEndTime() <= ts.getStartTime():
+                index = i
+                break
+            else:
+                current = ts.getEndTime()
+        if self.getEndTime() <= new_time_slot.getStartTime() and new_time_slot.getEndTime() <= (self._Tmax + 1):
+            index = len(self._time_slots)
+
+        if index is not None:
+            self._time_slots.insert(index, new_time_slot)
+            return
+
+        assert False
+
+    def getEndTime(self):
+        if len(self._time_slots) > 0:
+            return self._time_slots[-1].getEndTime()
+        return Schedule.START_TIME
+
+    def getBlankTime(self):
+        blanks = list()
+        current = Schedule.START_TIME
+        for ts in self._time_slots:
+            if current < ts.getStartTime():
+                blanks.append((current, ts.getStartTime()))
+            else:
+                current = ts.getEndTime()
+        if current <= self._Tmax:
+            blanks.append((current, self._Tmax+1))
+        return blanks
+
+    def fillStayActionInBlankTime(self):
+        for start_time, end_time in self.getBlankTime():
+            duration = end_time - start_time
+            stay_slot = TimeSlot.StayAction(start_time, duration)
+            self.assignTimeSlot(stay_slot)
+
+    def makeActionStrings(self):
         action = list()
-        for edge in trajectory.getEdges():
+        for ts in self._time_slots:
+            action += ts.makeActionStrings()
+        return action
+
+class TimeSlot:
+    # [start, end)
+    # start <= time < end
+    # end - start == duration
+    def __init__(self, start_time, duration, action):
+        self._start_time = start_time
+        self._duration = duration
+        self._action = action
+
+    def __str__(self):
+        return 'start={:03}, end={:03}, action=\'{}\''.format(self.getStartTime(), self.getEndTime(), self._action)
+
+    def getStartTime(self):
+        return self._start_time
+
+    def getEndTime(self):
+        return self._start_time + self._duration
+
+    def getDuration(self):
+        return self._duration
+
+    def makeActionStrings(self):
+        return self._action.makeActionStrings()
+
+    @staticmethod
+    def StayAction(start_time, stay_time):
+        return TimeSlot(start_time, stay_time, StayAction(stay_time))
+
+    @staticmethod
+    def MoveAction(start_time, trajectory):
+        return TimeSlot(start_time, trajectory.getDistance(), MoveAction(trajectory))
+
+    @staticmethod
+    def ExecuteAction(start_time, job_id, task_list):
+        return TimeSlot(start_time, len(task_list), ExecuteAction(job_id, task_list))
+
+class StayAction:
+    def __init__(self, stay_time):
+        self._stay_time = stay_time
+
+    def __str__(self):
+        return 'stay {} times'.format(self._stay_time)
+        
+    def makeActionStrings(self):
+        return ['stay'] * self._stay_time
+
+class MoveAction:
+    def __init__(self, trajectory):
+        self._trajectory = trajectory
+
+    def __str__(self):
+        return 'move {} -> {}'.format(self._trajectory.getStartVertex(), self._trajectory.getEndVertex())
+        
+    def makeActionStrings(self):
+        action = list()
+        for edge in self._trajectory.getEdges():
             move = ['move {}'.format(edge.v())] * edge.d()
             action += move
         return action
 
-        # TODO: faster?
-        #return ['move {}'.format(edge.v()) for _ in range(edge.d()) for edge in trajectory.getEdges()]
+class ExecuteAction:
+    def __init__(self, job_id, task_list):
+        self._job_id = job_id
+        self._task_list = task_list
 
-    def _makeExecuteAction(self, job, current_time, workload):
-        task_list = list()
-        while True:
-            numof_tasks = job.takeTasks(current_time + len(task_list), workload)
-            if numof_tasks == 0:
-                break
-            task_list.append(numof_tasks)
-
-        action = ['execute {} {}'.format(job.getJobId(), numof_tasks) for numof_tasks in task_list]
-        return action
-
-    def getAction(self, current_time):
-        if not self._started:
-            self._sm.start()
-            self._started = True
-
-        self._current_time = current_time
-        while len(self._event_queue) > 0:
-            event = self._event_queue.popleft()
-            self._sm.onEvent(event)
-        return self._sm.onAction()
-
-class WorkerState_Moving(State):
-    def onEntry(self, context):
-        #trajectory = Trajectory([context._current_vertex], 0)
-        pr_queue = queue.PriorityQueue()
-        #pr_queue.put(trajectory)
-        sweeped = set()
-        sweeped.add(context._current_vertex)
-        #sweeped.add(context._current_vertex)
-        for edge in context._graph.getEdges(context._current_vertex):
-            pr_queue.put(context._graph.findTrajectory(context._current_vertex, edge.v()))
-            sweeped.add(edge.v())
-
-        job_list = list()
-        reward_rating_list = list()
-        trajectory_list = list()
-        # TODO: add jobs of current vertex
-
-        while not pr_queue.empty():
-            trajectory = pr_queue.get()
-            jobs = context._job_admin.getJobsByVertex(trajectory.getEndVertex(), context._job_types)
-            if len(jobs) > 0:
-                for job in jobs:
-                    #log.debug(str(job))
-                    reward, time_to_execute = job.getExpectedReward(context._current_time + trajectory.getDistance(), context._max_workload)
-                    if reward > 0:
-                        job_list.append(job)
-                        reward_rating_list.append(reward / (trajectory.getDistance() + time_to_execute))
-                        trajectory_list.append(trajectory)
-                        break
-
-            #for vertex, distance in context._graph.getAdjacentVertices(trajectory.getVertices()[-1]):
-            for edge in context._graph.getEdges(trajectory.getEndVertex()):
-                if edge.v() in sweeped:
-                    continue
-                #new_trajectory = Trajectory([*trajectory.getVertices(), vertex], trajectory.getDistance() + distance)
-                #print('trajectory: {}'.format(trajectory), file=sys.stderr)
-                #print('edge: {}'.format(edge), file=sys.stderr)
-                new_trajectory = trajectory.createNewTrajectory(edge)
-                pr_queue.put(new_trajectory)
-                sweeped.add(edge.v())
-
-            if len(job_list) > 30:
-                break
-
-        if len(job_list) == 0:
-            #log.debug('sweeped={}'.format(str(sweeped)))
-            context._event_queue.append(WorkerEvent.NO_JOB)
-            return
-
-        best = reward_rating_list.index(max(reward_rating_list))
-        context._target_job = job_list[best]
-        trajectory = trajectory_list[best]
-
-        if trajectory.getDistance() == 0:
-            context._event_queue.append(WorkerEvent.MOVED)
-            return
-
-        context._trajectory = trajectory
-        context._trajectory_index = 0
-        #context._remaining_distance = context._graph.getDistance(
-        #        context._trajectory.getVertices()[context._trajectory_index],
-        #        context._trajectory.getVertices()[context._trajectory_index-1])
-        context._remaining_distance = context._trajectory.getEdges()[context._trajectory_index].d()
-
-    def onAction(self, context):
-        action = 'move {}'.format(context._trajectory.getEdges()[context._trajectory_index]).v()
-        context._remaining_distance -= 1
-        if context._remaining_distance == 0:
-            context._current_vertex = context._trajectory.getVertices()[context._trajectory_index]
-            context._trajectory_index += 1
-            if context._trajectory_index < len(context._trajectory.getVertices()):
-                context._remaining_distance = context._graph.getDistance(
-                        context._trajectory.getVertices()[context._trajectory_index],
-                        context._trajectory.getVertices()[context._trajectory_index-1])
-            else:
-                context._event_queue.append(WorkerEvent.MOVED)
-        return action
-
-        #action = 'move {}'.format(context._trajectory.getVertices()[context._trajectory_index])
-        #context._remaining_distance -= 1
-        #if context._remaining_distance == 0:
-        #    context._current_vertex = context._trajectory.getVertices()[context._trajectory_index]
-        #    context._trajectory_index += 1
-        #    if context._trajectory_index < len(context._trajectory.getVertices()):
-        #        context._remaining_distance = context._graph.getDistance(
-        #                context._trajectory.getVertices()[context._trajectory_index],
-        #                context._trajectory.getVertices()[context._trajectory_index-1])
-        #    else:
-        #        context._event_queue.append(WorkerEvent.MOVED)
-        #return action
-
-class WorkerState_Executing(State):
-    def onAction(self, context):
-        targetJob = context._target_job
-
-        reward, _ = targetJob.getExpectedReward(context._current_time, context._max_workload)
-        if reward == 0:
-            context._event_queue.append(WorkerEvent.EXECUTED)
-            action = 'stay'
-            return action
-
-        numofTakingTasks = targetJob.takeTasks(context._current_time, context._max_workload)
-        action = 'execute {} {}'.format(targetJob.getJobId(), numofTakingTasks)
-        if targetJob.isDone():
-            context._job_admin.notifyDoneJob(targetJob)
-            context._event_queue.append(WorkerEvent.EXECUTED)
-        return action
-
-    def onExit(self, context):
-        context._target_job = None
-
-class WorkerState_Idle(State):
-    def onEntry(self, context):
-        self._counter = 0
-
-    def onAction(self, context):
-        self._counter += 1
-        if self._counter >= 5:
-            context._event_queue.append(WorkerEvent.WAKEUP)
-        action = 'stay'
+    def __str__(self):
+        return 'execute {}'.format(self._job_id)
+        
+    def makeActionStrings(self):
+        action = ['execute {} {}'.format(self._job_id, numof_tasks) for numof_tasks in self._task_list]
         return action
 
 # -----------------------------------------------------------------------------
@@ -592,7 +557,7 @@ class JobAdmin:
         # TODO: make JobAdmin remember call history along time series
         if done_job in self._reseved_jobs:
             self._removeReservedJob(done_job)
-        if done_job in self._open_jobs:
+        elif done_job in self._open_jobs:
             self._removeOpenJob(done_job)
         else:
             return
@@ -624,6 +589,7 @@ class RewardFunction:
     def __str__(self):
         return ''.join(['t={}, y={},'.format(t, y) for t, y in zip(self._t, self._y)])
 
+    #@functools.lru_cache(maxsize=None)
     def __call__(self, t):
         if self._cache.get(t):
             return self._cache[t]
@@ -718,13 +684,13 @@ class Environment:
         #    self._job_admin.advanceTime()
 
         # Output
-        plans = []
+        schedules = []
         for i in range(self._Nworker):
-            plans.append(self._workers[i].makePlan(self._Tmax))
+            schedules.append(self._workers[i].makeSchedule(self._Tmax))
 
         for t in range(self._Tmax):
             for i in range(self._Nworker):
-                action = plans[i][t]
+                action = schedules[i][t]
                 log.debug(f"time={t+1:03}, worker={i}, action={action}")
                 print(action, flush=True)
 
@@ -739,7 +705,7 @@ class Environment:
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
-@execution_speed_lib
+#@execution_speed_lib
 def main():
     env = Environment()
     env.readInput()
