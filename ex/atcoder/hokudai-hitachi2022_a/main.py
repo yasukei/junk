@@ -74,7 +74,10 @@ class Edge:
         self._d = d
 
     def __str__(self):
-        return 'u={}, v={}, d={}'.format(self._u, self._v, self._d)
+        return 'u={}, v={}, d={}, '.format(
+                    self._u,
+                    self._v,
+                    self._d)
 
     def u(self):
         return self._u
@@ -136,10 +139,12 @@ class Graph:
 
                 #log.debug('trajectory={}'.format(trajectory))
                 #log.debug('edge={}'.format(edge))
-                newTrajectory = trajectory.createNewTrajectory(edge)
-                self._trajectory[(start, edge_v)] = newTrajectory
+                new_trajectory = trajectory.createNewTrajectory(edge)
+                self._trajectory[(start, edge_v)] = new_trajectory
+                #reversed_trajectory = self._createReversedTrajectory(new_trajectory)
+                #self._trajectory[(edge_v, start)] = reversed_trajectory
 
-                pr_queue.put(newTrajectory)
+                pr_queue.put(new_trajectory)
                 queued.add(edge_v)
 
                 if edge_v == goal:
@@ -205,39 +210,39 @@ class Trajectory:
 # Worker
 # -----------------------------------------------------------------------------
 class Worker:
-    def __init__(self, worker_id, initial_vertex, max_workload, job_types, graph, job_admin):
+    def __init__(self, worker_id, initial_vertex, workload, job_types):
         self._worker_id = worker_id
         self._initial_vertex = initial_vertex
-        self._current_vertex = initial_vertex
-        self._max_workload = max_workload
+        self._workload = workload
         self._job_types = job_types
-        self._graph = graph
-        self._job_admin = job_admin
 
     def __str__(self):
-        return f"worker_id={self._worker_id}, vertex={self._initial_vertex}, max_workload={self._max_workload}, job_types={self._job_types}"
+        return 'worker_id={}, vertex={}, workload={}, job_types={}'.format(
+                    self._worker_id,
+                    self._initial_vertex,
+                    self._workload,
+                    self._job_types)
 
-    def makeSchedule(self, Tmax):
+    def makeSchedule(self, Tmax, graph, job_admin):
         schedule = Schedule(Tmax, self._initial_vertex)
         def currentTime():
             return schedule.getTailJobEndTime()
-        current_vertex = self._initial_vertex
 
         while currentTime() <= Tmax:
-            current_vertex, added = Staff.makeGreedySchedule(self._graph, self._job_admin, schedule, self._job_types, self._max_workload, current_vertex)
-            log.debug('currentTime: {}'.format(currentTime()))
-            log.debug(schedule)
+            added = Method.makeGreedySchedule(graph, job_admin, schedule, self._job_types, self._workload)
+            #log.debug('currentTime: {}'.format(currentTime()))
+            #log.debug(schedule)
             if not added:
                 stay_time = min(5, Tmax - currentTime() + 1)
-                schedule += TimeSlot.StayAction(currentTime(), current_vertex, stay_time)
+                schedule += TimeSlot.StayAction(currentTime(), schedule.getTailJobEndVertex(), stay_time)
                 continue
 
         schedule.fillStayActionInBlankTime()
         return schedule.makeActionStrings()
 
-class Staff:
+class Method:
     @staticmethod
-    def makeGreedySchedule(graph, job_admin, schedule, job_types, workload, current_vertex):
+    def makeGreedySchedule(graph, job_admin, schedule, job_types, workload):
         def currentTime():
             return schedule.getTailJobEndTime()
         rating_list = list()
@@ -248,7 +253,7 @@ class Staff:
             if job.getJobType() not in job_types:
                 continue
 
-            trajectory = graph.getTrajectory(current_vertex, job.getVertex())
+            trajectory = graph.getTrajectory(schedule.getTailJobEndVertex(), job.getVertex())
             travel_time = trajectory.getDistance()
             reward, execute_time = job.getExpectedReward(currentTime() + travel_time, workload)
             if reward == 0:
@@ -260,20 +265,23 @@ class Staff:
             others_list.append((trajectory, job))
 
         if len(rating_list) == 0:
-            return current_vertex, False
+            return False
 
         best_index = rating_list.index(max(rating_list))
         trajectory, job = others_list[best_index]
         job_admin.reserveJob(job)
 
         schedule += TimeSlot.MoveAction(currentTime(), trajectory)
-        current_vertex = trajectory.getEndVertex()
 
         task_list = _makeTaskListForExecuteAction(job, currentTime(), workload)
-        schedule += TimeSlot.ExecuteAction(currentTime(), current_vertex, job.getJobId(), task_list)
+        schedule += TimeSlot.ExecuteAction(currentTime(), schedule.getTailJobEndVertex(), job.getJobId(), task_list)
         job_admin.notifyDoneJob(job)
         job_admin.advanceTime()
-        return current_vertex, True
+        return True
+
+    @staticmethod
+    def makeHighRewardSchedule(graph, job_admin, schedule, job_types, workload):
+        pass
 
 def _makeTaskListForExecuteAction(job, current_time, workload):
     task_list = list()
@@ -320,11 +328,15 @@ class Schedule:
 
         self._time_slots.insert(index, new_time_slot)
 
-
     def getTailJobEndTime(self):
         if len(self._time_slots) > 0:
             return self._time_slots[-1].getEndTime()
         return Schedule.START_TIME
+
+    def getTailJobEndVertex(self):
+        if len(self._time_slots) > 0:
+            return self._time_slots[-1].getEndVertex()
+        return self._initial_vertex
 
     def getBlankTime(self):
         # returns a list of tuple (start_time, end_time, start_vertex, end_vertex)
@@ -364,7 +376,10 @@ class TimeSlot:
         self._action = action
 
     def __str__(self):
-        return 'start={:03}, end={:03}, action=\'{}\''.format(self.getStartTime(), self.getEndTime(), self._action)
+        return 'start={:03}, end={:03}, action=\'{}\''.format(
+                    self.getStartTime(),
+                    self.getEndTime(),
+                    self._action)
 
     def getStartTime(self):
         return self._start_time
@@ -411,7 +426,9 @@ class MoveAction:
         self._trajectory = trajectory
 
     def __str__(self):
-        return 'move {} -> {}'.format(self._trajectory.getStartVertex(), self._trajectory.getEndVertex())
+        return 'move {} -> {}'.format(
+                    self._trajectory.getStartVertex(),
+                    self._trajectory.getEndVertex())
         
     def makeActionStrings(self):
         action = list()
@@ -471,6 +488,10 @@ class Job:
             return False
         return True
 
+    def getRewardPeak(self):
+        peak_time, peak_value = self._reward_func.getPeak()
+        return peak_time, peak_value
+
     def getVertex(self):
         return self._vertex
 
@@ -508,30 +529,44 @@ class Job:
         self._prior_job_ids.remove(done_job)
 
 class JobAdmin:
-    def __init__(self):
-        self._all_jobs = dict()
+    def __init__(self, jobs):
+        self._all_jobs = set()
+        self._job_dict = dict()
         self._open_jobs = set()
         self._open_jobs_foreach_vertex = collections.defaultdict(list)
         self._reseved_jobs = set()
-        self._hidden_jobs = dict()
-        self._done_jobs = list()
+        self._hidden_jobs = set()
+        self._done_jobs = set()
         self._subsequent_job_ids = collections.defaultdict(list)
         self._next_open_jobs = list()
 
+        for job in jobs:
+            self._addJob(job)
+
+        self._all_jobs_in_high_reward_order = list(self._all_jobs)
+        self._all_jobs_in_high_reward_order.sort(key=lambda job: job.getRewardPeak()[1], reverse=True)
+        for job in self._all_jobs_in_high_reward_order:
+            peak_time, peak_value = job.getRewardPeak()
+
     def __str__(self):
         return 'all={}, open={}, hidden={}, done={}'.format(
-                len(self._all_jobs), len(self._open_jobs), len(self._hidden_jobs), len(self._done_jobs))
+                len(self._all_jobs),
+                len(self._open_jobs),
+                len(self._hidden_jobs),
+                len(self._done_jobs))
 
-    def addJob(self, job):
-        self._all_jobs[job.getJobId()] = job
+    def _addJob(self, job):
+        self._all_jobs.add(job)
+        self._job_dict[job.getJobId()] = job
 
         if len(job.getPriorJobIds()) > 0:
-            self._hidden_jobs[job.getJobId()] = job
+            self._hidden_jobs.add(job)
             for priorJobId in job.getPriorJobIds():
                 self._subsequent_job_ids[priorJobId].append(job.getJobId())
         else:
             self._addOpenJob(job)
 
+    # TODO: support finding high peak job
     def _addOpenJob(self, job):
         self._open_jobs.add(job)
         self._open_jobs_foreach_vertex[job.getVertex()].append(job)
@@ -550,7 +585,7 @@ class JobAdmin:
         return self._open_jobs
 
     def getJobByJobId(self, job_id):
-        return self._all_jobs[job_id]
+        return self._job_dict[job_id]
 
     def getJobsByVertex(self, vertex, job_types):
         result = list()
@@ -559,9 +594,16 @@ class JobAdmin:
                 result.append(job)
         return result
 
+    def getAllJobsInHighRewardOrder(self):
+        return self._all_jobs_in_high_reward_order
+
     def reserveJob(self, job):
         self._removeOpenJob(job)
         self._addReservedJob(job)
+
+    def cancelReservedJob(self, job):
+        self._removeReservedJob(job)
+        self._addOpenJob(job)
 
     def notifyDoneJob(self, done_job):
         # TODO: make JobAdmin remember call history along time series
@@ -572,27 +614,27 @@ class JobAdmin:
         else:
             return
 
-        self._done_jobs.append(done_job)
+        self._done_jobs.add(done_job)
 
         for subsequentJobId in self._subsequent_job_ids[done_job.getJobId()]:
-            subsequentJob = self._hidden_jobs[subsequentJobId]
+            subsequentJob = self._job_dict[subsequentJobId]
             subsequentJob.notifyDoneJob(done_job.getJobId())
             if len(subsequentJob.getPriorJobIds()) == 0:
                 self._next_open_jobs.append(subsequentJob)
 
     def advanceTime(self):
         for job in self._next_open_jobs:
-            del self._hidden_jobs[job.getJobId()]
+            self._hidden_jobs.remove(job)
             self._addOpenJob(job)
         self._next_open_jobs.clear()
 
     def saveJobGraph(self):
         body = []
-        for job in self._all_jobs.values():
+        for job in self._all_jobs:
             s = '{} [label="{}", color=orange, style=filled]'.format(job.getJobId(), job.getJobId())
             body.append(s)
 
-        for job in self._all_jobs.values():
+        for job in self._all_jobs:
             for prior_job_id in job.getPriorJobIds():
                 s = '{} -> {}'.format(prior_job_id, job.getJobId())
                 body.append(s)
@@ -650,6 +692,9 @@ class RewardFunction:
     def getDuration(self):
         return self.getEndTime() - self.getStartTime()
 
+    def getPeak(self):
+        return self._peak_time, self._peak_value
+
     def getTotalReward(self, start_time, end_time):
         return self._cumulative_sum[end_time+1] - self._cumulative_sum[start_time]
 
@@ -680,17 +725,17 @@ class Environment:
         Nworker, = input().split()
         self._Nworker = int(Nworker)
         self._workers = list()
-        self._job_admin = JobAdmin()
         for i in range(self._Nworker):
             v, Lmax, Njobtype, *jobTypes = input().split()
             v, Lmax, Njobtype  = int(v), int(Lmax), int(Njobtype)
             jobTypes = list(map(int, jobTypes))
-            worker = Worker(i, v, Lmax, jobTypes, self._graph, self._job_admin)
+            worker = Worker(i, v, Lmax, jobTypes)
             self._workers.append(worker)
 
         # Job
         Njob, = input().split()
         self._Njob = int(Njob)
+        jobs = list()
         for _ in range(self._Njob):
             jobId, jobType, Ntask, vertex = input().split()
             jobId, jobType, Ntask, vertex = int(jobId), int(jobType), int(Ntask), int(vertex)
@@ -701,7 +746,8 @@ class Environment:
             Ndepend = int(Ndepend)
             priorJobIds = list(map(int, priorJobIds))
             job = Job(jobId, jobType, Ntask, vertex, rewards, priorJobIds)
-            self._job_admin.addJob(job)
+            jobs.append(job)
+        self._job_admin = JobAdmin(jobs)
 
         # log basic info
         log.debug(f"Tmax:      {self._Tmax}")
@@ -719,7 +765,7 @@ class Environment:
         # Output
         schedules = []
         for i in range(self._Nworker):
-            schedules.append(self._workers[i].makeSchedule(self._Tmax))
+            schedules.append(self._workers[i].makeSchedule(self._Tmax, self._graph, self._job_admin))
 
         for t in range(self._Tmax):
             for i in range(self._Nworker):
