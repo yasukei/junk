@@ -21,6 +21,8 @@ def execution_speed_lib(func):
         pr.runcall(func, *args, **kwargs)
 
         stats = pstats.Stats(pr)
+        stats.sort_stats(pstats.SortKey.TIME, pstats.SortKey.CUMULATIVE)
+        stats.reverse_order()
         stats.print_stats()
     return wrapper
 
@@ -72,6 +74,7 @@ class Edge:
         self._u = u
         self._v = v
         self._d = d
+        self._reversed_edge = None
 
     def __str__(self):
         return 'u={}, v={}, d={}, '.format(
@@ -88,6 +91,12 @@ class Edge:
     def d(self):
         return self._d
 
+    def reversedEdge(self):
+        return self._reversed
+
+    def setReversedEdge(self, reversed_edge):
+        self._reversed_edge = reversed_edge
+
 class Graph:
     def __init__(self, edges):
         self._edge = dict()
@@ -100,6 +109,8 @@ class Graph:
 
     def _addEdge(self, edge):
         u, v, d = edge.u(), edge.v(), edge.d()
+        # TODO: use reversed Edge
+        # edge_v_u = edge.reversed()
         edge_v_u = Edge(v, u, d)
         self._edge[(u, v)] = edge
         self._edge[(v, u)] = edge_v_u
@@ -117,10 +128,11 @@ class Graph:
             self._trajectory[(v, v)] = Trajectory([Edge(v, v, 0)])
 
     def getTrajectory(self, start, goal):
+        log.debug('start={}, goal={}'.format(start, goal))
+
         if self._trajectory.get((start, goal)):
             return self._trajectory[(start, goal)]
 
-        #log.debug('start={}, goal={}'.format(start, goal))
         pr_queue = queue.PriorityQueue()
         queued = set()
         queued.add(start)
@@ -175,6 +187,7 @@ class Graph:
 
 class Trajectory:
     def __init__(self, edges):
+        # TODO for performance: remove this assert
         for i in range(1, len(edges)):
             assert edges[i-1].v() == edges[i].u()
 
@@ -228,77 +241,127 @@ class Worker:
         def currentTime():
             return schedule.getTailJobEndTime()
 
-        while currentTime() <= Tmax:
-            added = Method.makeGreedySchedule(graph, job_admin, schedule, self._job_types, self._workload)
-            #log.debug('currentTime: {}'.format(currentTime()))
-            #log.debug(schedule)
-            if not added:
-                stay_time = min(5, Tmax - currentTime() + 1)
-                schedule += TimeSlot.StayAction(currentTime(), schedule.getTailJobEndVertex(), stay_time)
-                continue
+        #Method.makeHighRewardSchedule(graph, job_admin, schedule, self._job_types, self._workload)
+        Method.makeGreedySchedule(graph, job_admin, schedule, self._job_types, self._workload)
 
-        schedule.fillStayActionInBlankTime()
+        schedule.fillNecessaryMoveInBlankTime(graph)
+        schedule.fillStayInBlankTime()
         return schedule.makeActionStrings()
 
 class Method:
     @staticmethod
     def makeGreedySchedule(graph, job_admin, schedule, job_types, workload):
-        def currentTime():
-            return schedule.getTailJobEndTime()
-        rating_list = list()
-        others_list = list()
+        for blank in schedule.getBlankTime():
+            log.debug('blank, start_time={}, end_time={}'.format(blank.getStartTime(), blank.getEndTime()))
+            log.debug('blank, start_vertex={}, end_vertex={}'.format(blank.getStartVertex(), blank.getEndVertex()))
 
-        jobs = job_admin.getOpenJobs()
-        for job in jobs:
-            if job.getJobType() not in job_types:
-                continue
+            current_time = blank.getStartTime()
+            current_vertex = blank.getStartVertex()
 
-            trajectory = graph.getTrajectory(schedule.getTailJobEndVertex(), job.getVertex())
-            travel_time = trajectory.getDistance()
-            reward, execute_time = job.getExpectedReward(currentTime() + travel_time, workload)
-            if reward == 0:
-                continue
-            #log.debug('currentTime={}, travel_time={}, reward={}, execute_time={}'.format(currentTime(), travel_time, reward, execute_time))
-            rating = reward / (travel_time + execute_time)
+            while True:
+                best_rating = 0
+                best_job = None
 
-            rating_list.append(rating)
-            others_list.append((trajectory, job))
+                for job in job_admin.getOpenJobs():
+                    if job.getJobType() not in job_types:
+                        continue
+                    if job.isReserved():
+                        continue
+                    if job.getEndTime() <= current_time:
+                        continue
 
-        if len(rating_list) == 0:
-            return False
+                    execution_time = job.getExecutionTime(workload)
+                    if blank.getEndTime() < current_time + execution_time:
+                        continue
 
-        best_index = rating_list.index(max(rating_list))
-        trajectory, job = others_list[best_index]
-        job_admin.reserveJob(job)
+                    travel_time_before = graph.getTrajectory(current_vertex, job.getVertex()).getDistance()
+                    if blank.getEndTime() < current_time + travel_time_before + execution_time:
+                        continue
 
-        schedule += TimeSlot.MoveAction(currentTime(), trajectory)
+                    reward = job.getExpectedReward(current_time + travel_time_before, workload)
+                    if reward == 0:
+                        continue
 
-        task_list = _makeTaskListForExecuteAction(job, currentTime(), workload)
-        schedule += TimeSlot.ExecuteAction(currentTime(), schedule.getTailJobEndVertex(), job.getJobId(), task_list)
-        job_admin.notifyDoneJob(job)
-        job_admin.advanceTime()
-        return True
+                    if schedule.getTmax() < blank.getEndTime():
+                        travel_time_after = 0
+                    else:
+                        travel_time_after = graph.getTrajectory(job.getVertex(), blank.getEndVertex()).getDistance()
+                    if blank.getEndTime() < current_time + travel_time_before + execution_time + travel_time_after:
+                        continue
+
+                    #log.debug('current_time={}, travel_time={}, reward={}, execution_time={}'.format(current_time, travel_time, reward, execution_time))
+                    rating = reward / (travel_time_before + execution_time)
+
+                    if rating > best_rating:
+                        best_rating = rating
+                        best_job = job
+
+                if best_job:
+                    travel_time = graph.getTrajectory(current_vertex, best_job.getVertex()).getDistance()
+                    execute = TimeSlot.Execute(current_time + travel_time, best_job, workload)
+                    schedule += execute
+                    best_job.reserve()
+                    current_time = execute.getEndTime()
+                    current_vertex = execute.getEndVertex()
+                else:
+                    break
 
     @staticmethod
     def makeHighRewardSchedule(graph, job_admin, schedule, job_types, workload):
-        pass
+        mandatory_jobs = list()
 
-def _makeTaskListForExecuteAction(job, current_time, workload):
-    task_list = list()
-    while True:
-        numof_tasks = job.takeTasks(current_time + len(task_list), workload)
-        if numof_tasks == 0:
+        for high_reward_job in job_admin.getAllJobsInHighRewardOrder():
+            if not high_reward_job.getJobType() in job_types:
+                continue
+            if high_reward_job.isReserved():
+                continue
+
+            time_to_execute = high_reward_job.getOptimalTimeToExecute(workload)
+            schedule += TimeSlot.Execute(time_to_execute, high_reward_job, workload)
+            high_reward_job.reserve()
+
+            for prior_job in job_admin.getPriorJobs(high_reward_job):
+                for blank in schedule.getBlankTime():
+                    blank.getStartTime()
+                    prior_job.getStartTime()
+                    overlapped_interval = getOverlappedInterval(blank.getStartTime(), blank.getEndTime(), prior_job.getStartTime(), prior_job.getEndTime())
+                    if overlapped_interval is None:
+                        continue
+                    if overlapped_interval.getLength() < prior_job.getExecutionTime(workload):
+                        continue
+                    log.debug('blank_start={}, blank_end={}, job_start={}, job_end={}'.format(blank.getStartTime(), blank.getEndTime(), prior_job.getStartTime(), prior_job.getEndTime()))
+                    log.debug('interval_start={}, interval_end={}'.format(overlapped_interval.getStart(), overlapped_interval.getEnd()))
+
+                    travel_time_before = graph.getTrajectory(blank.getStartVertex(), prior_job.getVertex()).getDistance()
+                    if blank.getDuration() < prior_job.getExecutionTime(workload) + travel_time_before:
+                        continue
+
+                    travel_time_after = graph.getTrajectory(prior_job.getVertex(), blank.getEndVertex()).getDistance()
+                    if blank.getDuration() < prior_job.getExecutionTime(workload) + travel_time_before + travel_time_after:
+                        continue
+
+                    if blank.getStartTime() + travel_time_before <= overlapped_interval.getStart():
+                        time_to_execute = overlapped_interval.getStart()
+                    else:
+                        time_to_execute = blank.getStartTime() + travel_time_before
+
+                    schedule += TimeSlot.Execute(time_to_execute, prior_job, workload)
+                    prior_job.reserve()
+                    break
+                else:
+                    assert False
             break
-        task_list.append(numof_tasks)
-    return task_list
 
+# -----------------------------------------------------------------------------
+# Schedule
+# -----------------------------------------------------------------------------
 class Schedule:
     START_TIME = 1
 
     def __init__(self, Tmax, initial_vertex):
         self._Tmax = Tmax
-        self._time_slots = list()
         self._initial_vertex = initial_vertex
+        self._time_slots = list()
 
     def __str__(self):
         s = ['Schedule:']
@@ -306,11 +369,15 @@ class Schedule:
             s.append(str(ts))
         return '\n'.join(s)
 
+    def getTmax(self):
+        return self._Tmax
+
     def __iadd__(self, new_time_slot):
         self.assignTimeSlot(new_time_slot)
         return self
 
     def assignTimeSlot(self, new_time_slot):
+        log.debug('new_time_slot: {}'.format(new_time_slot))
         index = None
 
         current = 1
@@ -324,9 +391,12 @@ class Schedule:
             index = len(self._time_slots)
 
         if index is None:
+            log.debug('fail to assign')
+            log.debug(self)
             assert False
 
         self._time_slots.insert(index, new_time_slot)
+        log.debug('updated schedule: {}'.format(self))
 
     def getTailJobEndTime(self):
         if len(self._time_slots) > 0:
@@ -338,25 +408,44 @@ class Schedule:
             return self._time_slots[-1].getEndVertex()
         return self._initial_vertex
 
+    def getVertex(self, current_time):
+        vertex = self._initial_vertex
+        for ts in self._time_slots:
+            if current_time < ts.getStartTime():
+                break
+            elif current_time == ts.getStartTime():
+                vertex = ts.getStartVertex()
+                break
+            elif current_time < ts.getEndTime():
+                # When the timeslot is 'move', the vertex during moving is hard to determine at most
+                vertex = None
+                break
+            vertex = ts.getEndVertex()
+        return vertex
+
     def getBlankTime(self):
-        # returns a list of tuple (start_time, end_time, start_vertex, end_vertex)
         blanks = list()
         cursor = Schedule.START_TIME
         start_vertex = self._initial_vertex
         for ts in self._time_slots:
             if cursor < ts.getStartTime():
-                blanks.append((cursor, ts.getStartTime(), start_vertex, ts.getStartVertex))
+                blanks.append(Blank(cursor, ts.getStartTime(), start_vertex, ts.getStartVertex()))
             cursor = ts.getEndTime()
             start_vertex = ts.getEndVertex()
         if cursor <= self._Tmax:
-            blanks.append((cursor, self._Tmax+1, start_vertex, start_vertex))
+            blanks.append(Blank(cursor, self._Tmax+1, start_vertex, start_vertex))
         return blanks
 
-    def fillStayActionInBlankTime(self):
-        for start_time, end_time, start_vertex, _ in self.getBlankTime():
-            duration = end_time - start_time
-            stay_slot = TimeSlot.StayAction(start_time, start_vertex, duration)
-            self.assignTimeSlot(stay_slot)
+    def fillNecessaryMoveInBlankTime(self, graph):
+        for blank in self.getBlankTime():
+            if blank.getStartVertex() == blank.getEndVertex():
+                continue
+            trajectory = graph.getTrajectory(blank.getStartVertex(), blank.getEndVertex())
+            self += TimeSlot.Move(blank.getStartTime(), trajectory)
+
+    def fillStayInBlankTime(self):
+        for blank in self.getBlankTime():
+            self += TimeSlot.Stay(blank.getStartTime(), blank.getStartVertex(), blank.getDuration())
 
     def makeActionStrings(self):
         action = list()
@@ -400,16 +489,17 @@ class TimeSlot:
         return self._action.makeActionStrings()
 
     @staticmethod
-    def StayAction(start_time, current_vertex, stay_time):
-        return TimeSlot(start_time, stay_time, current_vertex, current_vertex, StayAction(stay_time))
+    def Stay(start_time, vertex, stay_time):
+        return TimeSlot(start_time, stay_time, vertex, vertex, StayAction(stay_time))
 
     @staticmethod
-    def MoveAction(start_time, trajectory):
+    def Move(start_time, trajectory):
         return TimeSlot(start_time, trajectory.getDistance(), trajectory.getStartVertex(), trajectory.getEndVertex(), MoveAction(trajectory))
 
     @staticmethod
-    def ExecuteAction(start_time, current_vertex, job_id, task_list):
-        return TimeSlot(start_time, len(task_list), current_vertex, current_vertex, ExecuteAction(job_id, task_list))
+    def Execute(start_time, job, workload):
+        task_list = job.getTaskListToExecute(workload)
+        return TimeSlot(start_time, len(task_list), job.getVertex(), job.getVertex(), ExecuteAction(job.getJobId(), task_list))
 
 class StayAction:
     def __init__(self, stay_time):
@@ -449,6 +539,57 @@ class ExecuteAction:
         action = ['execute {} {}'.format(self._job_id, numof_tasks) for numof_tasks in self._task_list]
         return action
 
+class Blank:
+    def __init__(self, start_time, end_time, start_vertex, end_vertex):
+        self._start_time = start_time
+        self._end_time = end_time
+        self._start_vertex = start_vertex
+        self._end_vertex = end_vertex
+
+    def getStartTime(self):
+        return self._start_time
+
+    def getEndTime(self):
+        return self._end_time
+
+    def getStartVertex(self):
+        return self._start_vertex
+
+    def getEndVertex(self):
+        return self._end_vertex
+
+    def getDuration(self):
+        return self._end_time - self._start_time
+
+class Interval:
+    def __init__(self, start, end):
+        self._start = start
+        self._end = end
+
+    def getStart(self):
+        return self._start
+
+    def getEnd(self):
+        return self._end
+
+    def getLength(self):
+        return self._end - self._start
+
+def getOverlappedInterval(start1, end1, start2, end2):
+    if end1 < start2 or end2 < start1:
+        return None
+
+    if start1 < start2:
+        if end1 < end2:
+            return Interval(start2, end1)
+        else:
+            return Interval(start2, end2)
+    else:
+        if end2 < end1:
+            return Interval(start1, end2)
+        else:
+            return Interval(start1, end1)
+
 # -----------------------------------------------------------------------------
 # Job
 # -----------------------------------------------------------------------------
@@ -456,19 +597,22 @@ class Job:
     def __init__(self, jobId, job_type, numof_tasks, vertex, rewards, prior_job_ids):
         self._job_id = jobId
         self._job_type = job_type
-        self._remaining_tasks = numof_tasks
+        self._numof_tasks = numof_tasks
         self._vertex = vertex
-        self._reward_func = RewardFunction(rewards)
-        self._gained_reward = 0
+        self._reward_function = RewardFunction(rewards)
         self._prior_job_ids = prior_job_ids
 
+        self._reserved = False
+        self._plannedStartTime = None
+        self._plannedEndTime = None
+
     def __str__(self):
-        l1 = 'jobId: {}, job_type: {}, numofRemainingTasks: {}, vertex: {}'.format(
+        l1 = 'jobId: {}, job_type: {}, numof_tasks: {}, vertex: {}'.format(
                 self._job_id,
                 self._job_type,
-                self._remaining_tasks,
+                self._numof_tasks,
                 self._vertex)
-        l2 = 'rewards: {}'.format(self._reward_func)
+        l2 = 'rewards: {}'.format(self._reward_function)
         l3 = 'numofPriorJobIds: {}, prior_job_ids: {}'.format(
                 len(self._prior_job_ids),
                 self._prior_job_ids)
@@ -480,53 +624,95 @@ class Job:
     def getJobType(self):
         return self._job_type
 
-    def isDone(self):
-        return self._remaining_tasks == 0
-
     def isOpen(self, current_time):
-        if current_time < self._reward_func.getStartTime() or self._reward_func.getEndTime() <= current_time or self._remaining_tasks == 0:
+        if current_time < self._reward_function.getStartTime() or self._reward_function.getEndTime() <= current_time:
             return False
         return True
 
-    def getRewardPeak(self):
-        peak_time, peak_value = self._reward_func.getPeak()
-        return peak_time, peak_value
+    def getStartTime(self):
+        return self._reward_function.getStartTime()
 
+    def getEndTime(self):
+        return self._reward_function.getEndTime()
+
+    def getRewardFunction(self):
+        return self._reward_function
+    
     def getVertex(self):
         return self._vertex
 
     def getPriorJobIds(self):
         return self._prior_job_ids
 
-    def getGainedReward(self):
-        if self._remaining_tasks > 0:
-            return 0
-        return int(self._gained_reward)
+    def getExecutionTime(self, workload):
+        return math.ceil(self._numof_tasks / workload)
 
-    def getExpectedReward(self, start_time, workload_per_time):
-        execute_time = math.ceil(self._remaining_tasks / workload_per_time)
-        end_time = start_time + execute_time - 1
-        if not self.isOpen(start_time) or not self.isOpen(end_time):
-            return 0, 0
-
-        if self._remaining_tasks < workload_per_time:
-            workload_per_time = self._remaining_tasks
-        reward = self._reward_func.getTotalReward(start_time, end_time) * workload_per_time
-        return reward, execute_time
-
-    def takeTasks(self, current_time, numof_taking):
-        reward, _ = self.getExpectedReward(current_time, numof_taking)
-        if reward <= 0:
+    def getExpectedReward(self, start_time, workload):
+        if not self.isOpen(start_time):
             return 0
 
-        if numof_taking > self._remaining_tasks:
-            numof_taking = self._remaining_tasks
-        self._remaining_tasks -= numof_taking
-        self._gained_reward += numof_taking * reward
-        return numof_taking
+        end_time = start_time + self.getExecutionTime(workload)
+        if not self.isOpen(end_time - 1):
+            return 0
 
-    def notifyDoneJob(self, done_job):
-        self._prior_job_ids.remove(done_job)
+        if self._numof_tasks < workload:
+            workload = self._numof_tasks
+        return self._reward_function.getTotalReward(start_time, end_time - 1) * workload
+
+    def getOptimalTimeToExecute(self, workload):
+        execution_time = self.getExecutionTime(workload)
+        peak_time, peak_value = self._reward_function.getPeak()
+        time_before, value_before = self._reward_function.getInflectionPointBeforePeak()
+        time_after, value_after = self._reward_function.getInflectionPointAfterPeak()
+        time_to_execute = 0
+        reward_max = 0
+        if value_before > value_after:
+            time_to_execute = math.floor(peak_time - execution_time / 2)
+            if time_to_execute + execution_time > self.getEndTime():
+                time_to_execute = self.getEndTime() - execution_time
+            while True:
+                reward = self.getExpectedReward(time_to_execute, workload)
+                log.debug('reward={}'.format(reward))
+                if reward > reward_max:
+                    reward_max = reward
+                    time_to_execute -= 1
+                    continue
+                break
+        else:
+            time_to_execute = math.ceil(peak_time - execution_time / 2)
+            if time_to_execute < self.getStartTime():
+                time_to_execute = self.getStartTime()
+            while True:
+                reward = self.getExpectedReward(time_to_execute, workload)
+                log.debug('reward={}'.format(reward))
+                if reward > reward_max:
+                    reward_max = reward
+                    time_to_execute += 1
+                    continue
+                break
+        return time_to_execute
+
+
+    def reserve(self):
+        if self._reserved:
+            assert False
+
+        self._reserved = True
+
+    def isReserved(self):
+        return self._reserved
+
+    def getTaskListToExecute(self, workload):
+        task_list = list()
+        remaining_tasks = self._numof_tasks
+        while remaining_tasks > 0:
+            numof_tasks = min(workload, remaining_tasks)
+            task_list.append(numof_tasks)
+            remaining_tasks -= numof_tasks
+        return task_list
+
+    #def notifyDoneJob(self, done_job):
+    #    self._prior_job_ids.remove(done_job)
 
 class JobAdmin:
     def __init__(self, jobs):
@@ -534,19 +720,18 @@ class JobAdmin:
         self._job_dict = dict()
         self._open_jobs = set()
         self._open_jobs_foreach_vertex = collections.defaultdict(list)
-        self._reseved_jobs = set()
         self._hidden_jobs = set()
         self._done_jobs = set()
         self._subsequent_job_ids = collections.defaultdict(list)
-        self._next_open_jobs = list()
 
         for job in jobs:
             self._addJob(job)
 
         self._all_jobs_in_high_reward_order = list(self._all_jobs)
-        self._all_jobs_in_high_reward_order.sort(key=lambda job: job.getRewardPeak()[1], reverse=True)
+        self._all_jobs_in_high_reward_order.sort(key=lambda job: job.getRewardFunction().getPeak()[1], reverse=True)
         for job in self._all_jobs_in_high_reward_order:
-            peak_time, peak_value = job.getRewardPeak()
+            peak_time, peak_value = job.getRewardFunction().getPeak()
+            log.debug('job_id={}, peak_time={}, peak_value={}'.format(job.getJobId(), peak_time, peak_value))
 
     def __str__(self):
         return 'all={}, open={}, hidden={}, done={}'.format(
@@ -566,7 +751,6 @@ class JobAdmin:
         else:
             self._addOpenJob(job)
 
-    # TODO: support finding high peak job
     def _addOpenJob(self, job):
         self._open_jobs.add(job)
         self._open_jobs_foreach_vertex[job.getVertex()].append(job)
@@ -574,12 +758,6 @@ class JobAdmin:
     def _removeOpenJob(self, job):
         self._open_jobs.remove(job)
         self._open_jobs_foreach_vertex[job.getVertex()].remove(job)
-
-    def _addReservedJob(self, job):
-        self._reseved_jobs.add(job)
-
-    def _removeReservedJob(self, job):
-        self._reseved_jobs.remove(job)
 
     def getOpenJobs(self):
         return self._open_jobs
@@ -597,36 +775,23 @@ class JobAdmin:
     def getAllJobsInHighRewardOrder(self):
         return self._all_jobs_in_high_reward_order
 
-    def reserveJob(self, job):
-        self._removeOpenJob(job)
-        self._addReservedJob(job)
+    def getPriorJobs(self, job):
+        # retrun a list of prior jobs in topological sort order
+        prior_jobs = list()
+        visited_job_ids = set()
+        JobAdmin._getPriorJobs(job, self._job_dict, visited_job_ids, prior_jobs)
+        return prior_jobs
 
-    def cancelReservedJob(self, job):
-        self._removeReservedJob(job)
-        self._addOpenJob(job)
+    @staticmethod
+    def _getPriorJobs(job, job_dict, visited_job_ids, result):
+        visited_job_ids.add(job.getJobId())
 
-    def notifyDoneJob(self, done_job):
-        # TODO: make JobAdmin remember call history along time series
-        if done_job in self._reseved_jobs:
-            self._removeReservedJob(done_job)
-        elif done_job in self._open_jobs:
-            self._removeOpenJob(done_job)
-        else:
-            return
-
-        self._done_jobs.add(done_job)
-
-        for subsequentJobId in self._subsequent_job_ids[done_job.getJobId()]:
-            subsequentJob = self._job_dict[subsequentJobId]
-            subsequentJob.notifyDoneJob(done_job.getJobId())
-            if len(subsequentJob.getPriorJobIds()) == 0:
-                self._next_open_jobs.append(subsequentJob)
-
-    def advanceTime(self):
-        for job in self._next_open_jobs:
-            self._hidden_jobs.remove(job)
-            self._addOpenJob(job)
-        self._next_open_jobs.clear()
+        for prior_job_id in job._prior_job_ids:
+            if prior_job_id in visited_job_ids:
+                continue
+            prior_job = job_dict[prior_job_id]
+            JobAdmin._getPriorJobs(prior_job, job_dict, visited_job_ids, result)
+            result.append(prior_job)
 
     def saveJobGraph(self):
         body = []
@@ -651,8 +816,8 @@ class RewardFunction:
         self._t = rewards[::2]
         self._y = rewards[1::2]
         self._peak_value = max(self._y)
-        self._peak_time = self._t[self._y.index(self._peak_value)]
-        self._cache = dict()
+        self._peak_index = self._y.index(self._peak_value)
+        self._peak_time = self._t[self._peak_index]
 
         self._cumulative_sum = [0] * (self._t[-1]+2)
         for t in range(self._t[0], self._t[-1]+1):
@@ -661,14 +826,9 @@ class RewardFunction:
     def __str__(self):
         return ''.join(['t={}, y={},'.format(t, y) for t, y in zip(self._t, self._y)])
 
-    #@functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None)
     def __call__(self, t):
-        if self._cache.get(t):
-            return self._cache[t]
-
-        y = self._callWithoutCache(t)
-        self._cache[t] = y
-        return y
+        return self._callWithoutCache(t)
 
     def _callWithoutCache(self, t):
         if t < self._t[0]:
@@ -694,6 +854,12 @@ class RewardFunction:
 
     def getPeak(self):
         return self._peak_time, self._peak_value
+
+    def getInflectionPointBeforePeak(self):
+        return self._t[self._peak_index - 1], self._y[self._peak_index - 1]
+
+    def getInflectionPointAfterPeak(self):
+        return self._t[self._peak_index + 1], self._y[self._peak_index + 1]
 
     def getTotalReward(self, start_time, end_time):
         return self._cumulative_sum[end_time+1] - self._cumulative_sum[start_time]
@@ -750,14 +916,14 @@ class Environment:
         self._job_admin = JobAdmin(jobs)
 
         # log basic info
-        log.debug(f"Tmax:      {self._Tmax}")
-        log.debug(f"Nv:        {self._Nv}")
-        log.debug(f"Ne:        {self._Ne}")
-        log.debug(f"Nworker:   {self._Nworker}")
+        log.info(f"Tmax:      {self._Tmax}")
+        log.info(f"Nv:        {self._Nv}")
+        log.info(f"Ne:        {self._Ne}")
+        log.info(f"Nworker:   {self._Nworker}")
         for i in range(self._Nworker):
-            log.debug(f"             {self._workers[i]}")
-        log.debug(f"Njob:      {self._Njob}")
-        log.debug(f"             {self._job_admin}")
+            log.info(f"             {self._workers[i]}")
+        log.info(f"Njob:      {self._Njob}")
+        log.info(f"             {self._job_admin}")
         if log.getLogger().isEnabledFor(log.DEBUG):
             self._job_admin.saveJobGraph()
 
@@ -770,28 +936,29 @@ class Environment:
         for t in range(self._Tmax):
             for i in range(self._Nworker):
                 action = schedules[i][t]
-                log.debug(f"time={t+1:03}, worker={i}, action={action}")
+                log.info(f"time={t+1:03}, worker={i}, action={action}")
                 print(action, flush=True)
+        end_time = time.perf_counter()
 
         # Score
         score, = input().split()
         self._score = int(score)
-        end_time = time.perf_counter()
-        log.debug(f"time:       {end_time - self._start_time}")
-        log.debug(f"job:        {self._job_admin}")
-        log.debug(f"score:      {self._score}")
+        log.info(f"time:       {end_time - self._start_time}")
+        log.info(f"job:        {self._job_admin}")
+        log.info(f"score:      {self._score}")
 
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
-#@execution_speed_lib
+@execution_speed_lib
 def main():
     env = Environment()
     env.readInput()
     env.run()
 
 if __name__ == '__main__':
-    log.basicConfig(filename='debug.log', filemode='w', level=log.DEBUG)
+    #log.basicConfig(filename='debug.log', filemode='w', format='%(lineno)d@%(funcName)s: %(message)s', level=log.DEBUG)
+    log.basicConfig(filename='debug.log', filemode='w', format='%(lineno)d@%(funcName)s: %(message)s', level=log.INFO)
 
     if len(sys.argv) == 1:
         main()
