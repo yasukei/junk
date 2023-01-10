@@ -29,46 +29,6 @@ def execution_speed_lib(func):
     return wrapper
 
 # -----------------------------------------------------------------------------
-# Statemachine
-# -----------------------------------------------------------------------------
-class State:
-    def onEntry(self, context=None):
-        pass
-    def onAction(self, context=None):
-        return None
-    def onExit(self, context=None):
-        pass
-
-class Statemachine:
-    def __init__(self, context=None):
-        self._initial_state = None
-        self._current_state = None
-        self._context = context
-        self._transitions = dict()
-
-    def addTransition(self, src, dst, event):
-        self._transitions[src, event] = dst
-
-    def setInitialState(self, initial_state):
-        self._initial_state = initial_state
-
-    def start(self):
-        self._current_state = self._initial_state
-        self._current_state.onEntry(self._context)
-
-    def onEvent(self, event):
-        dst = self._transitions.get((self._current_state, event))
-        if dst == None:
-            return
-
-        self._current_state.onExit(self._context)
-        dst.onEntry(self._context)
-        self._current_state = dst
-
-    def onAction(self):
-        return self._current_state.onAction(self._context)
-
-# -----------------------------------------------------------------------------
 # Graph
 # -----------------------------------------------------------------------------
 class Edge:
@@ -133,7 +93,7 @@ class Graph:
         if self._trajectory.get((v, v)) is None:
             self._trajectory[(v, v)] = Trajectory([v, v], 0)
 
-    def getTrajectory(self, start, goal):
+    def getTrajectory(self, start, goal, distance_limit=None):
         # TODO: use mid-point
 
         log.debug('start={}, goal={}'.format(start, goal))
@@ -150,6 +110,9 @@ class Graph:
 
         goalFound = False
         while not priority_queue.empty():
+            if distance_limit and distance_limit < priority_queue.getHeadItem().getDistance():
+                return None
+
             trajectory = priority_queue.deque()
 
             for edge in self._edges[trajectory.getEndVertex()]:
@@ -187,8 +150,11 @@ class Graph:
             vertices.append((edge.v(), edge.d()))
         return vertices
 
-    def getDistance(self, vertex1, vertex2):
-        return self.getTrajectory(vertex1, vertex2).getDistance()
+    def getDistance(self, vertex1, vertex2, distance_limit=None):
+        trajectory = self.getTrajectory(vertex1, vertex2, distance_limit)
+        if trajectory:
+            return trajectory.getDistance()
+        return None
 
 class Trajectory:
     def __init__(self, vertices, distance):
@@ -247,6 +213,9 @@ class PriorityQueue:
     def deque(self):
         return heapq.heappop(self._heap)
 
+    def getHeadItem(self):
+        return self._heap[0]
+
 # -----------------------------------------------------------------------------
 # Worker
 # -----------------------------------------------------------------------------
@@ -264,85 +233,113 @@ class Worker:
                     self._workload,
                     self._job_types)
 
+    def getWorkerId(self):
+        return self._worker_id
+
+    def getInitialVertex(self):
+        return self._initial_vertex
+
+    def getWorkload(self):
+        return self._workload
+
+    def getJobTypes(self):
+        return self._job_types
+
     def makeSchedule(self, Tmax, graph, job_admin):
         schedule = Schedule(Tmax, self._initial_vertex)
         def currentTime():
             return schedule.getTailJobEndTime()
 
         #Method.makeHighRewardSchedule(graph, job_admin, schedule, self._job_types, self._workload)
-        Method.makeGreedySchedule(graph, job_admin, schedule, self._job_types, self._workload)
+        Method.makeGreedyScheduleInAllBlanks(graph, job_admin, schedule, self._job_types, self._workload)
 
-        schedule.fillNecessaryMoveInBlankTime(graph)
-        schedule.fillStayInBlankTime()
+        schedule.fillNecessaryMoveInAllBlanks(graph)
+        schedule.fillStayInAllBlanks()
         return schedule.makeActionStrings()
+
+def filterAcceptableJobs(jobs, job_types, additional_condition=None):
+    if additional_condition:
+        for job in jobs:
+            if job.getJobType() in job_types and not job.isReserved() and additional_condition(job):
+                yield job
+    else:
+        for job in jobs:
+            if job.getJobType() in job_types and not job.isReserved():
+                yield job
+
+def canMoveAndExecute(graph, current_time, current_vertex, job, workload, end_time, end_vertex=None):
+    if job.getEndTime() <= current_time:
+        return False
+
+    given_time = end_time - current_time
+    execution_time = job.getExecutionTime(workload)
+    if given_time < execution_time:
+        return False
+
+    travel_time_before = graph.getDistance(current_vertex, job.getVertex(), given_time - execution_time)
+    if travel_time_before is None or given_time < travel_time_before + execution_time:
+        return False
+
+    reward = job.getExpectedReward(current_time + travel_time_before, workload)
+    if reward == 0:
+        return False
+
+    if end_vertex:
+        travel_time_after = graph.getDistance(job.getVertex(), end_vertex, given_time - travel_time_before - execution_time)
+        if travel_time_after is None or given_time < travel_time_before + execution_time + travel_time_after:
+            return False
+    return True
 
 class Method:
     @staticmethod
-    def makeGreedySchedule(graph, job_admin, schedule, job_types, workload):
+    def makeGreedyScheduleInAllBlanks(graph, job_admin, schedule, job_types, workload):
         for blank in schedule.getBlankTime():
-            log.debug('blank, start_time={}, end_time={}'.format(blank.getStartTime(), blank.getEndTime()))
-            log.debug('blank, start_vertex={}, end_vertex={}'.format(blank.getStartVertex(), blank.getEndVertex()))
-
-            current_time = blank.getStartTime()
-            current_vertex = blank.getStartVertex()
-
-            while True:
-                best_rating = 0
-                best_job = None
-
-                for job in job_admin.getOpenJobs():
-                    if job.getJobType() not in job_types:
-                        continue
-                    if job.isReserved():
-                        continue
-                    if job.getEndTime() <= current_time:
-                        continue
-
-                    execution_time = job.getExecutionTime(workload)
-                    if blank.getEndTime() < current_time + execution_time:
-                        continue
-
-                    travel_time_before = graph.getDistance(current_vertex, job.getVertex())
-                    if blank.getEndTime() < current_time + travel_time_before + execution_time:
-                        continue
-
-                    reward = job.getExpectedReward(current_time + travel_time_before, workload)
-                    if reward == 0:
-                        continue
-
-                    if schedule.getTmax() < blank.getEndTime():
-                        travel_time_after = 0
-                    else:
-                        travel_time_after = graph.getDistance(job.getVertex(), blank.getEndVertex())
-                    if blank.getEndTime() < current_time + travel_time_before + execution_time + travel_time_after:
-                        continue
-
-                    #log.debug('current_time={}, travel_time={}, reward={}, execution_time={}'.format(current_time, travel_time, reward, execution_time))
-                    rating = reward / (travel_time_before + execution_time)
-
-                    if rating > best_rating:
-                        best_rating = rating
-                        best_job = job
-
-                if best_job:
-                    travel_time = graph.getDistance(current_vertex, best_job.getVertex())
-                    execute = TimeSlot.Execute(current_time + travel_time, best_job, workload)
-                    schedule += execute
-                    best_job.reserve()
-                    current_time = execute.getEndTime()
-                    current_vertex = execute.getEndVertex()
-                else:
-                    break
+            Method.makeGreedySchedule(graph, job_admin, schedule, job_types, workload, blank)
 
     @staticmethod
-    def makeHighRewardSchedule(graph, job_admin, schedule, job_types, workload):
+    def makeGreedySchedule(graph, job_admin, schedule, job_types, workload, blank):
+        log.debug('blank, start_time={}, end_time={}'.format(blank.getStartTime(), blank.getEndTime()))
+        log.debug('blank, start_vertex={}, end_vertex={}'.format(blank.getStartVertex(), blank.getEndVertex()))
+
+        current_time = blank.getStartTime()
+        current_vertex = blank.getStartVertex()
+
+        while True:
+            best_rating = 0
+            best_job = None
+
+            def additionalCondition(job):
+                return canMoveAndExecute(graph, current_time, current_vertex, job, workload, blank.getEndTime(), blank.getEndVertex())
+
+            for job in filterAcceptableJobs(job_admin.getOpenJobs(), job_types, additionalCondition):
+                travel_time_before = graph.getDistance(current_vertex, job.getVertex())
+                reward = job.getExpectedReward(current_time + travel_time_before, workload)
+                execution_time = job.getExecutionTime(workload)
+                #log.debug('current_time={}, travel_time={}, reward={}, execution_time={}'.format(current_time, travel_time, reward, execution_time))
+                rating = reward / (travel_time_before + execution_time)
+
+                if rating > best_rating:
+                    best_rating = rating
+                    best_job = job
+
+            if best_job:
+                travel_time = graph.getDistance(current_vertex, best_job.getVertex())
+                execute = TimeSlot.Execute(current_time + travel_time, best_job, workload)
+                schedule += execute
+                best_job.reserve()
+                current_time = execute.getEndTime()
+                current_vertex = execute.getEndVertex()
+            else:
+                break
+
+    @staticmethod
+    def makeHighRewardSchedule(graph, job_admin, schedule, job_types, workload, blank):
         mandatory_jobs = list()
 
-        for high_reward_job in job_admin.getAllJobsInHighRewardOrder():
-            if not high_reward_job.getJobType() in job_types:
-                continue
-            if high_reward_job.isReserved():
-                continue
+        current_time = blank.getStartTime()
+        current_vertex = blank.getStartVertex()
+
+        for high_reward_job in filterAcceptableJobs(job_admin.getAllJobsInHighRewardOrder(), job_types):
 
             time_to_execute = high_reward_job.getOptimalTimeToExecute(workload)
             schedule += TimeSlot.Execute(time_to_execute, high_reward_job, workload)
@@ -461,17 +458,17 @@ class Schedule:
             cursor = ts.getEndTime()
             start_vertex = ts.getEndVertex()
         if cursor <= self._Tmax:
-            blanks.append(Blank(cursor, self._Tmax+1, start_vertex, start_vertex))
+            blanks.append(Blank(cursor, self._Tmax+1, start_vertex, None))
         return blanks
 
-    def fillNecessaryMoveInBlankTime(self, graph):
+    def fillNecessaryMoveInAllBlanks(self, graph):
         for blank in self.getBlankTime():
-            if blank.getStartVertex() == blank.getEndVertex():
+            if blank.getStartVertex() == blank.getEndVertex() or blank.getEndVertex() is None:
                 continue
             trajectory = graph.getTrajectory(blank.getStartVertex(), blank.getEndVertex())
             self += TimeSlot.Move(blank.getStartTime(), trajectory, graph)
 
-    def fillStayInBlankTime(self):
+    def fillStayInAllBlanks(self):
         for blank in self.getBlankTime():
             self += TimeSlot.Stay(blank.getStartTime(), blank.getStartVertex(), blank.getDuration())
 
@@ -960,9 +957,10 @@ class Main:
 
     def run(self):
         # Output
-        schedules = []
-        for i in range(self._Nworker):
-            schedules.append(self._workers[i].makeSchedule(self._Tmax, self._graph, self._job_admin))
+        schedules = [None] * self._Nworker
+        self._workers.sort(key=lambda worker: worker.getWorkload(), reverse=True)
+        for worker in self._workers:
+            schedules[worker.getWorkerId()] = worker.makeSchedule(self._Tmax, self._graph, self._job_admin)
 
         for t in range(self._Tmax):
             for i in range(self._Nworker):
