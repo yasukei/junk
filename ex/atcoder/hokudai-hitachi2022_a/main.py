@@ -1,7 +1,9 @@
 import bisect
 import collections
+import copy
 import enum
 import functools
+import heapq
 import logging as log
 import math
 import queue
@@ -74,7 +76,6 @@ class Edge:
         self._u = u
         self._v = v
         self._d = d
-        self._reversed_edge = None
 
     def __str__(self):
         return 'u={}, v={}, d={}, '.format(
@@ -91,15 +92,9 @@ class Edge:
     def d(self):
         return self._d
 
-    def reversedEdge(self):
-        return self._reversed
-
-    def setReversedEdge(self, reversed_edge):
-        self._reversed_edge = reversed_edge
-
 class Graph:
     def __init__(self, edges):
-        self._edge = dict()
+        #self._edge = dict()
         self._edges = collections.defaultdict(list)
         self._vertices = set()
         self._trajectory = dict()
@@ -107,57 +102,73 @@ class Graph:
         for edge in edges:
             self._addEdge(edge)
 
+        self._priority_queues = dict()
+        self._priority_queues_memo = dict()
+        for vertex in self._vertices:
+            priority_queue = PriorityQueue()
+            memo = set()
+            memo.add(vertex)
+            for edge in self._edges[vertex]:
+                priority_queue.enque(self._trajectory[(vertex, edge.v())])
+                memo.add(edge.v())
+
+            self._priority_queues[vertex] = priority_queue
+            self._priority_queues_memo[vertex] = memo
+
     def _addEdge(self, edge):
         u, v, d = edge.u(), edge.v(), edge.d()
-        # TODO: use reversed Edge
-        # edge_v_u = edge.reversed()
         edge_v_u = Edge(v, u, d)
-        self._edge[(u, v)] = edge
-        self._edge[(v, u)] = edge_v_u
+        #self._edge[(u, v)] = edge
+        #self._edge[(v, u)] = edge_v_u
         self._edges[u].append(edge)
         self._edges[v].append(edge_v_u)
 
         self._vertices.add(u)
         self._vertices.add(v)
 
-        self._trajectory[(u, v)] = Trajectory([edge])
-        self._trajectory[(v, u)] = Trajectory([edge_v_u])
+        self._trajectory[(u, v)] = Trajectory([u, v], d)
+        self._trajectory[(v, u)] = Trajectory([v, u], d)
         if self._trajectory.get((u, u)) is None:
-            self._trajectory[(u, u)] = Trajectory([Edge(u, u, 0)])
+            self._trajectory[(u, u)] = Trajectory([u, u], 0)
         if self._trajectory.get((v, v)) is None:
-            self._trajectory[(v, v)] = Trajectory([Edge(v, v, 0)])
+            self._trajectory[(v, v)] = Trajectory([v, v], 0)
 
     def getTrajectory(self, start, goal):
+        # TODO: use mid-point
+
         log.debug('start={}, goal={}'.format(start, goal))
 
         if self._trajectory.get((start, goal)):
             return self._trajectory[(start, goal)]
+        #elif self._trajectory.get((goal, start)):
+        #    reversed_trajectory = self._trajectory[(goal, start)].getReversedTrajectory()
+        #    self._trajectory[(start, goal)] = reversed_trajectory
+        #    return reversed_trajectory
 
-        pr_queue = queue.PriorityQueue()
-        queued = set()
-        queued.add(start)
-        for edge in self._edges[start]:
-            pr_queue.put(self._trajectory[(start, edge.v())])
-            queued.add(edge.v())
+        priority_queue = self._priority_queues[start]
+        memo = self._priority_queues_memo[start]
 
         goalFound = False
-        while not pr_queue.empty():
-            trajectory = pr_queue.get()
+        while not priority_queue.empty():
+            trajectory = priority_queue.deque()
 
             for edge in self._edges[trajectory.getEndVertex()]:
                 edge_v = edge.v()
-                if edge_v in queued:
+                if edge_v in memo:
                     continue
+                #if self._trajectory.get((edge_v, goal)):
+                #    new_trajectory = trajectory + self._trajectory[(edge_v, goal)]
+                #    self._trajectory[(start, goal)] = new_trajectory
+                #    goalFound = True
+                #    break
 
                 #log.debug('trajectory={}'.format(trajectory))
                 #log.debug('edge={}'.format(edge))
-                new_trajectory = trajectory.createNewTrajectory(edge)
+                new_trajectory = trajectory.createNewTrajectory(edge.v(), edge.d())
                 self._trajectory[(start, edge_v)] = new_trajectory
-                #reversed_trajectory = self._createReversedTrajectory(new_trajectory)
-                #self._trajectory[(edge_v, start)] = reversed_trajectory
 
-                pr_queue.put(new_trajectory)
-                queued.add(edge_v)
+                priority_queue.enque(new_trajectory)
+                memo.add(edge_v)
 
                 if edge_v == goal:
                     goalFound = True
@@ -166,10 +177,6 @@ class Graph:
                 break
 
         return self._trajectory[(start, goal)]
-
-    def _createReversedTrajectory(self, trajectory):
-        reversed_edges = [self._edge[(edge.v(), edge.u())] for edge in reversed(trajectory.getEdges())]
-        return Trajectory(reversed_edges)
 
     def getEdges(self, vertex):
         return self._edges[vertex]
@@ -181,24 +188,27 @@ class Graph:
         return vertices
 
     def getDistance(self, vertex1, vertex2):
-        if not self._trajectory.get((vertex1, vertex2)):
-            raise NotImplemented()
-        return self._trajectory[(vertex1, vertex2)].getDistance()
+        return self.getTrajectory(vertex1, vertex2).getDistance()
 
 class Trajectory:
-    def __init__(self, edges):
-        # TODO for performance: remove this assert
-        for i in range(1, len(edges)):
-            assert edges[i-1].v() == edges[i].u()
+    def __init__(self, vertices, distance):
+        self._vertices = vertices
+        #self._end_vertex = vertices[-1]
+        self._distance = distance
 
-        self._edges = edges
-        self._distance = sum([edge.d() for edge in edges])
+        #self._reversed_trajectory = None
 
     def __lt__(self, other):
         return self._distance < other._distance
 
+    def __add__(self, other):
+        assert False
+        # TODO
+        vertices = self._edges + other._edges
+        return Trajectory(edges, self._distance + other._distance)
+
     def __str__(self):
-        s1 = ''.join(list(map(str, self._edges)))
+        s1 = 'vertices={}'.format(self._vertices)
         s2 = 'distance={}'.format(self._distance)
         return '\n'.join([s1, s2])
 
@@ -206,18 +216,36 @@ class Trajectory:
         return self._distance
 
     def getStartVertex(self):
-        return self._edges[0].u()
+        return self._vertices[0]
 
     def getEndVertex(self):
-        return self._edges[-1].v()
+        return self._vertices[-1]
+        #return self._end_vertex
 
-    def getEdges(self):
-        return self._edges
+    def getVertices(self):
+        return self._vertices
 
-    def createNewTrajectory(self, edge):
-        edges = [edge for edge in self._edges]
-        edges.append(edge)
-        return Trajectory(edges)
+    #def getReversedTrajectory(self):
+    #    if self._reversed_trajectory:
+    #        return self._reversed_trajectory
+    #    reversed_edges = [edge.getReversedEdge() for edge in reversed(self._edges)]
+    #    return Trajectory(reversed_edges, self._distance)
+
+    def createNewTrajectory(self, vertex, distance):
+        return Trajectory(self._vertices + [vertex], self._distance + distance)
+
+class PriorityQueue:
+    def __init__(self):
+        self._heap = list()
+
+    def empty(self):
+        return len(self._heap) == 0
+
+    def enque(self, item):
+        heapq.heappush(self._heap, item)
+
+    def deque(self):
+        return heapq.heappop(self._heap)
 
 # -----------------------------------------------------------------------------
 # Worker
@@ -274,7 +302,7 @@ class Method:
                     if blank.getEndTime() < current_time + execution_time:
                         continue
 
-                    travel_time_before = graph.getTrajectory(current_vertex, job.getVertex()).getDistance()
+                    travel_time_before = graph.getDistance(current_vertex, job.getVertex())
                     if blank.getEndTime() < current_time + travel_time_before + execution_time:
                         continue
 
@@ -285,7 +313,7 @@ class Method:
                     if schedule.getTmax() < blank.getEndTime():
                         travel_time_after = 0
                     else:
-                        travel_time_after = graph.getTrajectory(job.getVertex(), blank.getEndVertex()).getDistance()
+                        travel_time_after = graph.getDistance(job.getVertex(), blank.getEndVertex())
                     if blank.getEndTime() < current_time + travel_time_before + execution_time + travel_time_after:
                         continue
 
@@ -297,7 +325,7 @@ class Method:
                         best_job = job
 
                 if best_job:
-                    travel_time = graph.getTrajectory(current_vertex, best_job.getVertex()).getDistance()
+                    travel_time = graph.getDistance(current_vertex, best_job.getVertex())
                     execute = TimeSlot.Execute(current_time + travel_time, best_job, workload)
                     schedule += execute
                     best_job.reserve()
@@ -332,11 +360,11 @@ class Method:
                     log.debug('blank_start={}, blank_end={}, job_start={}, job_end={}'.format(blank.getStartTime(), blank.getEndTime(), prior_job.getStartTime(), prior_job.getEndTime()))
                     log.debug('interval_start={}, interval_end={}'.format(overlapped_interval.getStart(), overlapped_interval.getEnd()))
 
-                    travel_time_before = graph.getTrajectory(blank.getStartVertex(), prior_job.getVertex()).getDistance()
+                    travel_time_before = graph.getDistance(blank.getStartVertex(), prior_job.getVertex())
                     if blank.getDuration() < prior_job.getExecutionTime(workload) + travel_time_before:
                         continue
 
-                    travel_time_after = graph.getTrajectory(prior_job.getVertex(), blank.getEndVertex()).getDistance()
+                    travel_time_after = graph.getDistance(prior_job.getVertex(), blank.getEndVertex())
                     if blank.getDuration() < prior_job.getExecutionTime(workload) + travel_time_before + travel_time_after:
                         continue
 
@@ -441,7 +469,7 @@ class Schedule:
             if blank.getStartVertex() == blank.getEndVertex():
                 continue
             trajectory = graph.getTrajectory(blank.getStartVertex(), blank.getEndVertex())
-            self += TimeSlot.Move(blank.getStartTime(), trajectory)
+            self += TimeSlot.Move(blank.getStartTime(), trajectory, graph)
 
     def fillStayInBlankTime(self):
         for blank in self.getBlankTime():
@@ -493,8 +521,8 @@ class TimeSlot:
         return TimeSlot(start_time, stay_time, vertex, vertex, StayAction(stay_time))
 
     @staticmethod
-    def Move(start_time, trajectory):
-        return TimeSlot(start_time, trajectory.getDistance(), trajectory.getStartVertex(), trajectory.getEndVertex(), MoveAction(trajectory))
+    def Move(start_time, trajectory, graph):
+        return TimeSlot(start_time, trajectory.getDistance(), trajectory.getStartVertex(), trajectory.getEndVertex(), MoveAction(trajectory, graph))
 
     @staticmethod
     def Execute(start_time, job, workload):
@@ -512,8 +540,9 @@ class StayAction:
         return ['stay'] * self._stay_time
 
 class MoveAction:
-    def __init__(self, trajectory):
+    def __init__(self, trajectory, graph):
         self._trajectory = trajectory
+        self._graph = graph
 
     def __str__(self):
         return 'move {} -> {}'.format(
@@ -522,8 +551,10 @@ class MoveAction:
         
     def makeActionStrings(self):
         action = list()
-        for edge in self._trajectory.getEdges():
-            move = ['move {}'.format(edge.v())] * edge.d()
+        vertices = self._trajectory.getVertices()
+        for i in range(1, len(vertices)):
+            #move = ['move {}'.format(edge.v())] * edge.d()
+            move = ['move {}'.format(vertices[i])] * self._graph.getDistance(vertices[i-1], vertices[i])
             action += move
         return action
 
@@ -865,9 +896,9 @@ class RewardFunction:
         return self._cumulative_sum[end_time+1] - self._cumulative_sum[start_time]
 
 # -----------------------------------------------------------------------------
-# Environment
+# Main
 # -----------------------------------------------------------------------------
-class Environment:
+class Main:
     def __init__(self):
         self._start_time = time.perf_counter()
 
@@ -950,15 +981,15 @@ class Environment:
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
-@execution_speed_lib
+#@execution_speed_lib
 def main():
-    env = Environment()
-    env.readInput()
-    env.run()
+    main = Main()
+    main.readInput()
+    main.run()
 
 if __name__ == '__main__':
-    #log.basicConfig(filename='debug.log', filemode='w', format='%(lineno)d@%(funcName)s: %(message)s', level=log.DEBUG)
-    log.basicConfig(filename='debug.log', filemode='w', format='%(lineno)d@%(funcName)s: %(message)s', level=log.INFO)
+    log.basicConfig(filename='debug.log', filemode='w', format='%(lineno)d@%(funcName)s: %(message)s', level=log.DEBUG)
+    #log.basicConfig(filename='debug.log', filemode='w', format='%(lineno)d@%(funcName)s: %(message)s', level=log.INFO)
 
     if len(sys.argv) == 1:
         main()
