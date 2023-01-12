@@ -93,10 +93,10 @@ class Graph:
         if self._trajectory.get((v, v)) is None:
             self._trajectory[(v, v)] = Trajectory([v, v], 0)
 
-    def getTrajectory(self, start, goal, distance_limit=None):
+    def getTrajectory(self, start, goal):
         # TODO: use mid-point
 
-        log.debug('start={}, goal={}'.format(start, goal))
+        #log.debug('start={}, goal={}'.format(start, goal))
 
         if self._trajectory.get((start, goal)):
             return self._trajectory[(start, goal)]
@@ -110,9 +110,6 @@ class Graph:
 
         goalFound = False
         while not priority_queue.empty():
-            if distance_limit and distance_limit < priority_queue.getHeadItem().getDistance():
-                return None
-
             trajectory = priority_queue.deque()
 
             for edge in self._edges[trajectory.getEndVertex()]:
@@ -150,8 +147,8 @@ class Graph:
             vertices.append((edge.v(), edge.d()))
         return vertices
 
-    def getDistance(self, vertex1, vertex2, distance_limit=None):
-        trajectory = self.getTrajectory(vertex1, vertex2, distance_limit)
+    def getDistance(self, vertex1, vertex2):
+        trajectory = self.getTrajectory(vertex1, vertex2)
         if trajectory:
             return trajectory.getDistance()
         return None
@@ -161,8 +158,6 @@ class Trajectory:
         self._vertices = vertices
         #self._end_vertex = vertices[-1]
         self._distance = distance
-
-        #self._reversed_trajectory = None
 
     def __lt__(self, other):
         return self._distance < other._distance
@@ -192,10 +187,8 @@ class Trajectory:
         return self._vertices
 
     #def getReversedTrajectory(self):
-    #    if self._reversed_trajectory:
-    #        return self._reversed_trajectory
-    #    reversed_edges = [edge.getReversedEdge() for edge in reversed(self._edges)]
-    #    return Trajectory(reversed_edges, self._distance)
+    #    reversed_vertices = [vertex for vertex in reversed(self._vertices)]
+    #    return Trajectory(reversed_vertices, self._distance)
 
     def createNewTrajectory(self, vertex, distance):
         return Trajectory(self._vertices + [vertex], self._distance + distance)
@@ -250,8 +243,9 @@ class Worker:
         def currentTime():
             return schedule.getTailJobEndTime()
 
+        Method.makeScheduleByDP(graph, job_admin, schedule, self._job_types, self._workload)
         #Method.makeHighRewardSchedule(graph, job_admin, schedule, self._job_types, self._workload)
-        Method.makeGreedyScheduleInAllBlanks(graph, job_admin, schedule, self._job_types, self._workload)
+        #Method.makeGreedyScheduleInAllBlanks(graph, job_admin, schedule, self._job_types, self._workload)
 
         schedule.fillNecessaryMoveInAllBlanks(graph)
         schedule.fillStayInAllBlanks()
@@ -276,7 +270,7 @@ def canMoveAndExecute(graph, current_time, current_vertex, job, workload, end_ti
     if given_time < execution_time:
         return False
 
-    travel_time_before = graph.getDistance(current_vertex, job.getVertex(), given_time - execution_time)
+    travel_time_before = graph.getDistance(current_vertex, job.getVertex())
     if travel_time_before is None or given_time < travel_time_before + execution_time:
         return False
 
@@ -285,7 +279,7 @@ def canMoveAndExecute(graph, current_time, current_vertex, job, workload, end_ti
         return False
 
     if end_vertex:
-        travel_time_after = graph.getDistance(job.getVertex(), end_vertex, given_time - travel_time_before - execution_time)
+        travel_time_after = graph.getDistance(job.getVertex(), end_vertex)
         if travel_time_after is None or given_time < travel_time_before + execution_time + travel_time_after:
             return False
     return True
@@ -331,6 +325,101 @@ class Method:
                 current_vertex = execute.getEndVertex()
             else:
                 break
+
+    @staticmethod
+    def makeScheduleByDP(graph, job_admin, schedule, job_types, workload):
+        # TODO: treat all jobs considering with prior jobs
+
+        all_jobs = list(job_admin.getOpenJobs())
+        all_jobs.sort(key=lambda job: job.getRewardFunction().getPeak()[1], reverse=True)
+        log.debug('all_jobs={}'.format(len(all_jobs)))
+        all_jobs = all_jobs[:100]
+        log.debug('all_jobs={}'.format(len(all_jobs)))
+        numof_jobs = len(all_jobs)
+        Tmax = schedule.getTmax()
+        initial_vertex = schedule.getVertex(1)
+
+        dp = [[[None, None, None] for _ in range(numof_jobs)] for _ in range(Tmax + 1)]
+        dp[0][0][0] = 0      # total reward
+        dp[0][0][1] = set()  # done job ids
+        dp[0][0][2] = list() # Timeslots
+        for t in range(1, Tmax + 1):
+            for i in range(numof_jobs):
+                log.debug('t={}, i={}'.format(t, i))
+
+                if i == 0:
+                    dp[t][i][0] = dp[t-1][i][0]
+                    dp[t][i][1] = dp[t-1][i][1]
+                    dp[t][i][2] = dp[t-1][i][2]
+                else:
+                    max_reward = 0
+                    done_job_ids = None
+                    timeslots = None
+                    previous_vertex = None
+
+                    #job_i = job_admin.getJobByJobId(i)
+                    job_i = all_jobs[i]
+                    job_i_execution_time = job_i.getExecutionTime(workload)
+                    job_i_reward = job_i.getExpectedReward(t - job_i_execution_time, workload)
+
+                    if job_i_reward > 0:
+                        for j in range(numof_jobs):
+                            if j == 0:
+                                j_vertex = initial_vertex
+                            else:
+                                #j_vertex = job_admin.getJobByJobId(j).getVertex()
+                                j_vertex = all_jobs[j].getVertex()
+                            distance = graph.getDistance(j_vertex, job_i.getVertex())
+
+                            j_time = t - distance - job_i_execution_time
+                            if j_time < 1:
+                                continue
+                            if dp[j_time][j][0] is None:
+                                continue
+                            if i in dp[j_time][j][1]:
+                                continue
+
+                            temp = job_i_reward + dp[j_time][j][0]
+                            if temp > max_reward:
+                                max_reward = temp
+                                done_job_ids = dp[j_time][j][1]
+                                timeslots = dp[j_time][j][2]
+                                previous_vertex = j_vertex
+
+                    if dp[t-1][i][0] is None:
+                        if max_reward > 0:
+                            dp[t][i][0] = max_reward
+                            dp[t][i][1] = done_job_ids | {i}
+                            trajectory = graph.getTrajectory(previous_vertex, job_i.getVertex())
+                            distance = trajectory.getDistance()
+                            dp[t][i][2] = timeslots \
+                                            + [TimeSlot.Move(t - distance - job_i_execution_time, trajectory, graph), \
+                                               TimeSlot.Execute(t - job_i_execution_time, job_i, workload)]
+                    else:
+                        if max_reward > dp[t-1][i][0]:
+                            dp[t][i][0] = max_reward
+                            dp[t][i][1] = done_job_ids | {i}
+                            trajectory = graph.getTrajectory(previous_vertex, job_i.getVertex())
+                            distance = trajectory.getDistance()
+                            dp[t][i][2] = timeslots \
+                                            + [TimeSlot.Move(t - distance - job_i_execution_time, trajectory, graph), \
+                                               TimeSlot.Execute(t - job_i_execution_time, job_i, workload)]
+                        else:
+                            dp[t][i][0] = dp[t-1][i][0]
+                            dp[t][i][1] = dp[t-1][i][1]
+                            dp[t][i][2] = dp[t-1][i][2]
+                #log.debug('dp[{}][{}], [0]={}, [1]={}, [2]={}'.format(t, i, dp[t][i][0], dp[t][i][1], dp[t][i][2]))
+
+        best_reward = 0
+        best_job_timeslots = None
+        for i in range(numof_jobs):
+            if dp[Tmax][i][0] > best_reward:
+                best_reward = dp[Tmax][i][0]
+                best_job_timeslots = dp[Tmax][i][2]
+
+        for ts in best_job_timeslots:
+            schedule += ts
+
 
     @staticmethod
     def makeHighRewardSchedule(graph, job_admin, schedule, job_types, workload, blank):
@@ -759,7 +848,7 @@ class JobAdmin:
         self._all_jobs_in_high_reward_order.sort(key=lambda job: job.getRewardFunction().getPeak()[1], reverse=True)
         for job in self._all_jobs_in_high_reward_order:
             peak_time, peak_value = job.getRewardFunction().getPeak()
-            log.debug('job_id={}, peak_time={}, peak_value={}'.format(job.getJobId(), peak_time, peak_value))
+            #log.debug('job_id={}, peak_time={}, peak_value={}'.format(job.getJobId(), peak_time, peak_value))
 
     def __str__(self):
         return 'all={}, open={}, hidden={}, done={}'.format(
@@ -786,6 +875,9 @@ class JobAdmin:
     def _removeOpenJob(self, job):
         self._open_jobs.remove(job)
         self._open_jobs_foreach_vertex[job.getVertex()].remove(job)
+
+    def getAllJobs(self):
+        return self._all_jobs
 
     def getOpenJobs(self):
         return self._open_jobs
@@ -979,7 +1071,7 @@ class Main:
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
-#@execution_speed_lib
+@execution_speed_lib
 def main():
     main = Main()
     main.readInput()
