@@ -147,11 +147,9 @@ class Graph:
             vertices.append((edge.v(), edge.d()))
         return vertices
 
+    @functools.lru_cache(maxsize=None)
     def getDistance(self, vertex1, vertex2):
-        trajectory = self.getTrajectory(vertex1, vertex2)
-        if trajectory:
-            return trajectory.getDistance()
-        return None
+        return self.getTrajectory(vertex1, vertex2).getDistance()
 
 class Trajectory:
     def __init__(self, vertices, distance):
@@ -243,9 +241,9 @@ class Worker:
         def currentTime():
             return schedule.getTailJobEndTime()
 
-        Method.makeScheduleByDP(graph, job_admin, schedule, self._job_types, self._workload)
+        #Method.makeScheduleByDP(graph, job_admin, schedule, self._job_types, self._workload)
         #Method.makeHighRewardSchedule(graph, job_admin, schedule, self._job_types, self._workload)
-        #Method.makeGreedyScheduleInAllBlanks(graph, job_admin, schedule, self._job_types, self._workload)
+        Method.makeGreedyScheduleInAllBlanks(graph, job_admin, schedule, self._job_types, self._workload)
 
         schedule.fillNecessaryMoveInAllBlanks(graph)
         schedule.fillStayInAllBlanks()
@@ -345,8 +343,6 @@ class Method:
         dp[0][0][2] = list() # Timeslots
         for t in range(1, Tmax + 1):
             for i in range(numof_jobs):
-                log.debug('t={}, i={}'.format(t, i))
-
                 if i == 0:
                     dp[t][i][0] = dp[t-1][i][0]
                     dp[t][i][1] = dp[t-1][i][1]
@@ -357,19 +353,18 @@ class Method:
                     timeslots = None
                     previous_vertex = None
 
-                    #job_i = job_admin.getJobByJobId(i)
                     job_i = all_jobs[i]
                     job_i_execution_time = job_i.getExecutionTime(workload)
                     job_i_reward = job_i.getExpectedReward(t - job_i_execution_time, workload)
+                    job_i_vertex = job_i.getVertex()
 
                     if job_i_reward > 0:
                         for j in range(numof_jobs):
                             if j == 0:
                                 j_vertex = initial_vertex
                             else:
-                                #j_vertex = job_admin.getJobByJobId(j).getVertex()
                                 j_vertex = all_jobs[j].getVertex()
-                            distance = graph.getDistance(j_vertex, job_i.getVertex())
+                            distance = graph.getDistance(j_vertex, job_i_vertex)
 
                             j_time = t - distance - job_i_execution_time
                             if j_time < 1:
@@ -390,7 +385,7 @@ class Method:
                         if max_reward > 0:
                             dp[t][i][0] = max_reward
                             dp[t][i][1] = done_job_ids | {i}
-                            trajectory = graph.getTrajectory(previous_vertex, job_i.getVertex())
+                            trajectory = graph.getTrajectory(previous_vertex, job_i_vertex)
                             distance = trajectory.getDistance()
                             dp[t][i][2] = timeslots \
                                             + [TimeSlot.Move(t - distance - job_i_execution_time, trajectory, graph), \
@@ -399,7 +394,7 @@ class Method:
                         if max_reward > dp[t-1][i][0]:
                             dp[t][i][0] = max_reward
                             dp[t][i][1] = done_job_ids | {i}
-                            trajectory = graph.getTrajectory(previous_vertex, job_i.getVertex())
+                            trajectory = graph.getTrajectory(previous_vertex, job_i_vertex)
                             distance = trajectory.getDistance()
                             dp[t][i][2] = timeslots \
                                             + [TimeSlot.Move(t - distance - job_i_execution_time, trajectory, graph), \
@@ -1071,7 +1066,7 @@ class Main:
 # -----------------------------------------------------------------------------
 # main
 # -----------------------------------------------------------------------------
-@execution_speed_lib
+#@execution_speed_lib
 def main():
     main = Main()
     main.readInput()
