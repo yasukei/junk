@@ -38,20 +38,20 @@ std::string format(const std::string& fmt, Args ... args )
 }
 
 std::string to_string(const std::vector<int>& v) {
-	std::string result = "[ ";
-	for(auto elem : v) {
+	std::string result = "size=" + std::to_string(v.size()) + ", [ ";
+	for(auto& elem : v) {
 		result += std::to_string(elem) + ", ";
 	}
 	result += "]";
 	return result;
 }
 
-std::string to_string(const std::unordered_set<int>& us) {
-	std::string result = "{ ";
-	for(auto elem : us) {
-		result += std::to_string(elem) + ", ";
+std::string to_string(const std::vector<std::string>& v) {
+	std::string result = "size=" + std::to_string(v.size()) + ", [ ";
+	for(auto& elem : v) {
+		result += elem + ", ";
 	}
-	result += "}";
+	result += "]";
 	return result;
 }
 
@@ -90,7 +90,7 @@ private:
 // -----------------------------------------------------------------------------
 // Edge, Trajectory, PriorityQueue, Graph
 // -----------------------------------------------------------------------------
-const int VERTEX_NONE = -1;
+static const int VERTEX_NONE = -1;
 
 class Edge {
 public:
@@ -201,9 +201,8 @@ public:
 
 			_trajectory.emplace(std::make_pair(u, v), std::make_shared<Trajectory>(std::vector<int>{u, v}, d));
 			_trajectory.emplace(std::make_pair(v, u), std::make_shared<Trajectory>(std::vector<int>{v, u}, d));
-			// TODO: use {u} instead of {u, u}
-			_trajectory.emplace(std::make_pair(u, u), std::make_shared<Trajectory>(std::vector<int>{u, u}, 0));
-			_trajectory.emplace(std::make_pair(v, v), std::make_shared<Trajectory>(std::vector<int>{v, v}, 0));
+			_trajectory.emplace(std::make_pair(u, u), std::make_shared<Trajectory>(std::vector<int>{u}, 0));
+			_trajectory.emplace(std::make_pair(v, v), std::make_shared<Trajectory>(std::vector<int>{v}, 0));
 		}
 
 		for(auto& vertex : _vertices) {
@@ -319,10 +318,8 @@ public:
 	int getStartTime() const { return _ts.front() + 1; }
 	int getEndTime() const { return _ts.back(); }
 	int getDuration() const { return getEndTime() - getStartTime(); }
-	void getPeak(int& peakTime, int& peakValue) const {
-		peakTime = _peakTime;
-		peakValue = _peakValue;
-	}
+	int getPeakTime() const { return _peakTime; }
+	int getPeakValue() const { return _peakValue; }
 	double getTotalReward(int startTime, int endTime) const {
 		return _cumulativeSum[endTime] - _cumulativeSum[startTime];
 	}
@@ -340,7 +337,7 @@ private:
 		} else if(t >= _ts.back()) {
 			return _ys.back();
 		} else {
-			auto it = std::lower_bound(_ts.begin(), _ts.end(), t);
+			auto it = std::upper_bound(_ts.begin(), _ts.end(), t);
 			size_t index = std::distance(_ts.begin(), it);
 			int tPrev = _ts[index-1];
 			double yPrev = _ys[index-1];
@@ -378,22 +375,21 @@ public:
 	int getVertex() const { return _vertex; }
 	int getStartTime() const { return _rewardFunction.getStartTime(); }
 	int getEndTime() const { return _rewardFunction.getEndTime(); }
+	int getRewardPeakTime() const { return _rewardFunction.getPeakTime(); }
+	int getRewardPeakValue() const { return _rewardFunction.getPeakValue(); }
 	const std::vector<int>& getPriorJobIds() const { return _priorJobIds; }
 
 	int getExecutionTime(int workload) const {
 		return std::ceil((double)_numofTasks / (double)workload);
 	}
-	bool isOpen(int time) const {
-		return _rewardFunction.getStartTime() <= time && time < _rewardFunction.getEndTime();
-	}
 
 	double getExpectedReward(int startTime, int workload) const {
-		if(!isOpen(startTime)) {
+		if(startTime < getStartTime()) {
 			return 0.0;
 		}
 
 		int endTime = startTime + getExecutionTime(workload);
-		if(!isOpen(endTime)) { 
+		if(getEndTime() < endTime) {
 			return 0.0;
 		}
 
@@ -401,7 +397,7 @@ public:
 			workload = _numofTasks;
 		}
 
-		return _rewardFunction.getTotalReward(startTime, endTime) * (double)workload;
+		return _rewardFunction.getTotalReward(startTime, endTime) * ((double)_numofTasks)  / ((double)getExecutionTime(workload));
 	}
 
 	void reserve() {
@@ -553,7 +549,7 @@ public:
 		return "No action";
 	}
 	std::vector<std::string> makeActionStrings() const {
-		return std::vector<std::string>();
+		return std::vector<std::string>(1, "No action");
 	}
 
 private:
@@ -567,7 +563,9 @@ public:
 		_startVertex(startVertex),
 		_endVertex(endVertex),
 		_action(action)
-	{}
+	{
+		assert(startTime < endTime);
+	}
 
 	std::string toString() const {
 		return format("start=%03d, end=%03d, action={%s}", _startTime, _endTime, _action->toString().c_str());
@@ -631,7 +629,7 @@ public:
 	{}
 
 	std::string toString() const {
-		std::string result = "Schedule:\n";
+		std::string result = format("Schedule: size=%d\n", _timeSlots.size());
 		for(auto& timeSlot : _timeSlots) {
 			result += timeSlot.toString() + "\n";
 		}
@@ -722,8 +720,8 @@ public:
 	std::vector<std::string> makeActionStrings() {
 		std::vector<std::string> result;
 
-		for(auto& timeslot : _timeSlots) {
-			std::vector<std::string> actionStrings = timeslot.makeActionStrings();
+		for(auto& timeSlot : _timeSlots) {
+			std::vector<std::string> actionStrings = timeSlot.makeActionStrings();
 			result.insert(result.end(), actionStrings.begin(), actionStrings.end());
 		}
 		return result;
@@ -764,13 +762,18 @@ public:
 	std::vector<std::string> makeSchedule(int Tmax, Graph& graph, JobAdmin& jobAdmin) const {
 		Schedule schedule(Tmax, _initialVertex);
 
-		makeGreedySchedule(schedule, graph, jobAdmin, _jobTypes, _workload);
+		//makeGreedySchedule(schedule, graph, jobAdmin, _jobTypes, _workload);
+		makeScheduleByDP(schedule, graph, jobAdmin, _jobTypes, _workload);
+		Log_debug(format("%s", schedule.toString().c_str()));
 		schedule.fillNecessaryMoveInAllBlankTimeSlots(graph);
+		Log_debug(format("%s", schedule.toString().c_str()));
 		schedule.fillStayInAllBlankTimeSlots();
+		Log_debug(format("%s", schedule.toString().c_str()));
 		return schedule.makeActionStrings();
 	}
 
 	static bool acceptableJob(const Job& job, const std::vector<int>& jobTypes) {
+		// TODO: make JobType class?
 		auto it = std::find(jobTypes.begin(), jobTypes.end(), job.getJobType());
 		return it != jobTypes.end() && !job.isReserved();
 	}
@@ -847,6 +850,125 @@ public:
 		}
 	}
 
+	struct DpElement {
+		double totalReward;
+		std::unordered_set<int> doneJobIds;
+		std::set<TimeSlot> timeSlots;
+
+		DpElement() :
+			totalReward(0.0),
+			doneJobIds(),
+			timeSlots()
+		{}
+		// TODO: get more efficient such as sharing objects using pointer, etc.
+		DpElement(double totalReward, const std::unordered_set<int>& doneJobIds, const std::set<TimeSlot>& timeSlots) :
+			totalReward(totalReward),
+			doneJobIds(doneJobIds),
+			timeSlots(timeSlots)
+		{}
+	};
+
+	static void makeScheduleByDP(Schedule& schedule, Graph& graph, JobAdmin& jobAdmin, const std::vector<int>& jobTypes, int workload) {
+		int Tmax = schedule.getTmax();
+		int initialVertex = schedule.getInitialVertex();
+
+		auto rewardDescendingOrder = [](const std::shared_ptr<Job>& a, const std::shared_ptr<Job>& b) {
+			return a->getRewardPeakValue() > b->getRewardPeakValue();
+		};
+		auto allJobs = jobAdmin.getOpenJobs();
+		std::sort(allJobs.begin(), allJobs.end(), rewardDescendingOrder);
+		//allJobs.resize(100);
+
+		std::vector<std::vector<DpElement*>> dp(Tmax+1);
+		for(auto& dpRow : dp) {
+			dpRow.resize(allJobs.size(), nullptr);
+		}
+		dp[0][0] = new DpElement();
+
+		for(int t = 1; t <= Tmax; t++) {
+			for(size_t i = 0; i < allJobs.size(); i++) {
+				// TODO: this ignores job index=0
+				if(i == 0) {
+					dp[t][i] = dp[t-1][i];
+					continue;
+				}
+
+				double maxReward = 0.0;
+				std::unordered_set<int>* doneJobIds;
+				std::set<TimeSlot>* timeSlots;
+
+				const std::shared_ptr<Job> job_i = allJobs[i];
+				int job_i_executiontime = job_i->getExecutionTime(workload);
+				double job_i_reward = job_i->getExpectedReward(t - job_i_executiontime, workload);
+				int job_i_vertex = job_i->getVertex();
+
+				if(job_i_reward > 0.0) {
+					for(size_t j = 0; j < allJobs.size(); j++) {
+						int j_vertex;
+						if(j == 0) {
+							j_vertex = initialVertex;
+						} else {
+							j_vertex = allJobs[j]->getVertex();
+						}
+						int distance = graph.getDistance(j_vertex, job_i_vertex);
+
+						int j_time = t - distance - job_i_executiontime;
+						if(j_time < 1) {
+							continue;
+						}
+						if(dp[j_time][j] == nullptr) {
+							continue;
+						}
+						if(dp[j_time][j]->doneJobIds.count(i) > 0) {
+							continue;
+						}
+
+						double reward = job_i_reward + dp[j_time][j]->totalReward;
+						if(reward > maxReward) {
+							maxReward = reward;
+							doneJobIds = &(dp[j_time][j]->doneJobIds);
+							timeSlots = &(dp[j_time][j]->timeSlots);
+						}
+					}
+				}
+
+				if(dp[t-1][i] == nullptr) {
+					if(maxReward > 0.0) {
+						DpElement* dpElement = new DpElement(maxReward, *doneJobIds, *timeSlots);
+						dpElement->doneJobIds.emplace(i);
+						dpElement->timeSlots.emplace(
+							TimeSlot::Execute(t - job_i_executiontime, *job_i, workload));
+						dp[t][i] = dpElement;
+					}
+				} else {
+					if(maxReward > dp[t-1][i]->totalReward) {
+						DpElement* dpElement = new DpElement(maxReward, *doneJobIds, *timeSlots);
+						dpElement->doneJobIds.emplace(i);
+						dpElement->timeSlots.emplace(
+							TimeSlot::Execute(t - job_i_executiontime, *job_i, workload));
+						dp[t][i] = dpElement;
+					} else {
+						dp[t][i] = dp[t-1][i];
+					}
+				}
+			}
+		}
+
+		double bestReward = 0.0;
+		std::set<TimeSlot>* bestTimeSlots;
+		for(size_t i = 0; i < allJobs.size(); i++) {
+			Log_debug(format("i=%03d, totalReward=%lf", i, dp[Tmax][i]->totalReward));
+			if(dp[Tmax][i]->totalReward > bestReward) {
+				bestReward = dp[Tmax][i]->totalReward;
+				bestTimeSlots = &(dp[Tmax][i]->timeSlots);
+			}
+		}
+		Log_debug(format("bestReward=%lf", bestReward));
+		for(auto& timeSlot : *bestTimeSlots) {
+			schedule += timeSlot;
+		}
+	}
+
 private:
 	int _workerId;
 	int _initialVertex;
@@ -866,7 +988,7 @@ private:
 		}\
 	} while(false);
 
-void TestRewardFunction() {
+static void TestRewardFunction() {
 	std::vector<int> rewards = {5, 0, 10, 5, 15, 0};
 	RewardFunction func(rewards);
 
@@ -895,8 +1017,45 @@ void TestRewardFunction() {
 	EQUAL(func.getTotalReward(6, 15), 25.0);
 }
 
+static void TestJob() {
+	int jobId = 1;
+	int jobType = 2;
+	int Ntask = 9;
+	int vertex = 3;
+	std::vector<int> rewards = {5, 0, 10, 5, 15, 0};
+	std::vector<int> priorJobIds = {4};
+	Job job(jobId, jobType, Ntask, vertex, rewards, priorJobIds);
+
+	EQUAL(job.getStartTime(), 6);
+	EQUAL(job.getEndTime(), 15);
+
+	EQUAL(job.getExecutionTime(1), 9);
+	EQUAL(job.getExecutionTime(2), 5);
+	EQUAL(job.getExecutionTime(3), 3);
+	EQUAL(job.getExecutionTime(4), 3);
+	EQUAL(job.getExecutionTime(5), 2);
+	EQUAL(job.getExecutionTime(6), 2);
+	EQUAL(job.getExecutionTime(7), 2);
+	EQUAL(job.getExecutionTime(8), 2);
+	EQUAL(job.getExecutionTime(9), 1);
+	EQUAL(job.getExecutionTime(10), 1);
+	EQUAL(job.getExecutionTime(11), 1);
+
+	EQUAL(job.getExpectedReward(5, 1), 0.0);
+	EQUAL(job.getExpectedReward(6, 1), 25.0);
+	EQUAL(job.getExpectedReward(7, 1), 0.0);
+	EQUAL(job.getExpectedReward(5, 2), 0.0);
+	EQUAL(job.getExpectedReward(6, 2), 30.0);
+	EQUAL(job.getExpectedReward(7, 2), 36.0);
+	EQUAL(job.getExpectedReward(8, 2), 38.0);
+	EQUAL(job.getExpectedReward(9, 2), 36.0);
+	EQUAL(job.getExpectedReward(10, 2), 30.0);
+	EQUAL(job.getExpectedReward(11, 2), 0.0);
+}
+
 void TestAll() {
 	TestRewardFunction();
+	TestJob();
 }
 
 // -----------------------------------------------------------------------------
@@ -922,11 +1081,12 @@ public:
 
 		// Worker
 		std::cin >> _Nworker;
+		std::vector<int> jobTypes;
 		for(int i = 0; i < _Nworker; i++) {
 			int v, Lmax, Njobtype;
 			std::cin >> v >> Lmax >> Njobtype;
 
-			std::vector<int> jobTypes;
+			jobTypes.clear();
 			for(int j = 0; j < Njobtype; j++) {
 				int jobType;
 				std::cin >> jobType;
@@ -938,11 +1098,13 @@ public:
 		// Job
 		std::cin >> _Njob;
 		std::vector<std::shared_ptr<Job>> jobs;
+		std::vector<int> rewards;
+		std::vector<int> priorJobIds;
 		for(int i = 0; i < _Njob; i++) {
 			int jobId, jobType, Ntask, vertex, Nreward;
 			std::cin >> jobId >> jobType >> Ntask >> vertex >> Nreward;
 
-			std::vector<int> rewards;
+			rewards.clear();
 			for(int j = 0; j < Nreward; j++) {
 				int t, y;
 				std::cin >> t >> y;
@@ -952,7 +1114,7 @@ public:
 
 			int Ndepend;
 			std::cin >> Ndepend;
-			std::vector<int> priorJobIds;
+			priorJobIds.clear();
 			for(int j = 0; j < Ndepend; j++) {
 				int priorJobId;
 				std::cin >> priorJobId;
@@ -988,9 +1150,8 @@ public:
 		// Output
 		for(int t = 0; t < _Tmax; t++) {
 			for(size_t i = 0; i < _workers.size(); i++) {
-				Log_info(actionStrings[i][t]);
+				Log_info(format("t=%03d, action=\"%s\"", t+1, actionStrings[i][t].c_str()));
 				std::cout << actionStrings[i][t] << std::endl;
-				//std::cout << "stay" << std::endl;
 			}
 		}
 
