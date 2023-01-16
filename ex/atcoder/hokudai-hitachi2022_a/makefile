@@ -3,8 +3,8 @@ TARGET_A=main_A
 TARGET_B=main_B
 
 #CXXFLAGS=-g -O0 -Wall
-CXXFLAGS=-pg -O3 -Wall
-#CXXFLAGS=-O3 -Wall
+#CXXFLAGS=-pg -O3 -Wall
+CXXFLAGS=-O3 -Wall
 
 all: $(TARGET_A)
 
