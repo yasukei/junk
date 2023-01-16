@@ -881,13 +881,12 @@ public:
 
 		std::vector<std::vector<DpElement*>> dp(Tmax+1);
 		for(auto& dpRow : dp) {
-			dpRow.resize(allJobs.size(), nullptr);
+			dpRow.resize(allJobs.size()+1, nullptr);
 		}
 		dp[0][0] = new DpElement();
 
 		for(int t = 1; t <= Tmax; t++) {
-			for(size_t i = 0; i < allJobs.size(); i++) {
-				// TODO: this ignores job index=0
+			for(size_t i = 0; i <= allJobs.size(); i++) {
 				if(i == 0) {
 					dp[t][i] = dp[t-1][i];
 					continue;
@@ -897,18 +896,18 @@ public:
 				std::unordered_set<int>* doneJobIds;
 				std::set<TimeSlot>* timeSlots;
 
-				const std::shared_ptr<Job> job_i = allJobs[i];
+				const std::shared_ptr<Job> job_i = allJobs[i-1];
 				int job_i_executiontime = job_i->getExecutionTime(workload);
 				double job_i_reward = job_i->getExpectedReward(t - job_i_executiontime, workload);
 				int job_i_vertex = job_i->getVertex();
 
 				if(job_i_reward > 0.0) {
-					for(size_t j = 0; j < allJobs.size(); j++) {
+					for(size_t j = 0; j <= allJobs.size(); j++) {
 						int j_vertex;
 						if(j == 0) {
 							j_vertex = initialVertex;
 						} else {
-							j_vertex = allJobs[j]->getVertex();
+							j_vertex = allJobs[j-1]->getVertex();
 						}
 						int distance = graph.getDistance(j_vertex, job_i_vertex);
 
@@ -956,7 +955,7 @@ public:
 
 		double bestReward = 0.0;
 		std::set<TimeSlot>* bestTimeSlots;
-		for(size_t i = 0; i < allJobs.size(); i++) {
+		for(size_t i = 0; i <= allJobs.size(); i++) {
 			Log_debug(format("i=%03d, totalReward=%lf", i, dp[Tmax][i]->totalReward));
 			if(dp[Tmax][i]->totalReward > bestReward) {
 				bestReward = dp[Tmax][i]->totalReward;
