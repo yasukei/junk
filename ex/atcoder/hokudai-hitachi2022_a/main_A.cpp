@@ -184,13 +184,18 @@ static int getVertexPairHash(int vertex1, int vertex2) {
 
 class Graph {
 public:
-	Graph(const std::vector<Edge>& edges) :
+	Graph(int Nv, int Ne, const std::vector<Edge>& edges) :
 		_trajectory(),
 		_priorityQueues(),
 		_priorityQueuesMemo(),
-		_edges()
+		_edges(),
+		_Nv(Nv),
+		_Ne(Ne)
 	{
 		std::unordered_set<int> vertices;
+		vertices.reserve(Nv);
+		_edges.reserve(Ne * 2);
+
 		for(const auto& edge : edges) {
 			int u = edge.u();
 			int v = edge.v();
@@ -203,7 +208,7 @@ public:
 			vertices.emplace(v);
 		}
 
-		_trajectory.reserve(vertices.size() * vertices.size());
+		_trajectory.reserve(Nv * Nv);
 		for(const auto& edge : edges) {
 			int u = edge.u();
 			int v = edge.v();
@@ -230,6 +235,10 @@ public:
 			_priorityQueues[vertex] = std::move(priorityQueue);
 			_priorityQueuesMemo[vertex] = std::move(memo);
 		}
+	}
+
+	std::string toString() {
+		return format("Nv=%d, Ne=%d", _Nv, _Ne);
 	}
 
 	const Trajectory& getTrajectory(int start, int goal) {
@@ -273,12 +282,27 @@ public:
 		return getTrajectory(vertex1, vertex2).getDistance();
 	}
 
+	static Graph* createGraphFromStdin() {
+		int Nv, Ne;
+
+		std::cin >> Nv >> Ne;
+		std::vector<Edge> edges;
+		for(int i = 0; i < Ne; i++) {
+			int u, v, d;
+			std::cin >> u >> v >> d;
+			edges.emplace_back(u, v, d);
+		}
+		return new Graph(Nv, Ne, std::move(edges));
+	}
+
 private:
 	std::unordered_map<int, std::shared_ptr<Trajectory>> _trajectory;
 	std::unordered_map<int, PriorityQueue> _priorityQueues;
 	std::unordered_map<int, std::unordered_set<int>> _priorityQueuesMemo;
 
 	std::unordered_multimap<int, Edge> _edges;
+	int _Nv;
+	int _Ne;
 };
 
 // -----------------------------------------------------------------------------
@@ -455,7 +479,7 @@ public:
 	}
 
 	std::string toString() const {
-		return format("allJobs=%d", _allJobs.size());
+		return format("Njob=%d", _allJobs.size());
 	}
 
 	const std::vector<std::shared_ptr<Job>>& getAllJobsInHighRewardOrder() const { return _allJobs; }
@@ -513,6 +537,39 @@ public:
 
 	static bool rewardDescendingOrder(const std::shared_ptr<Job>& job1, const std::shared_ptr<Job>& job2) {
 		return job1->getRewardPeakValue() > job2->getRewardPeakValue();
+	}
+
+	static JobAdmin* createJobAdminFromStdin() {
+		int Njob;
+		std::vector<std::shared_ptr<Job>> jobs;
+		std::vector<int> rewards;
+		std::vector<int> priorJobIds;
+
+		std::cin >> Njob;
+		for(int i = 0; i < Njob; i++) {
+			int jobId, jobType, Ntask, vertex, Nreward;
+			std::cin >> jobId >> jobType >> Ntask >> vertex >> Nreward;
+
+			rewards.clear();
+			for(int j = 0; j < Nreward; j++) {
+				int t, y;
+				std::cin >> t >> y;
+				rewards.emplace_back(t);
+				rewards.emplace_back(y);
+			}
+
+			int Ndepend;
+			std::cin >> Ndepend;
+			priorJobIds.clear();
+			for(int j = 0; j < Ndepend; j++) {
+				int priorJobId;
+				std::cin >> priorJobId;
+				priorJobIds.emplace_back(priorJobId);
+			}
+			jobs.emplace_back(std::make_shared<Job>(jobId, jobType, Ntask, vertex, rewards, priorJobIds));
+		}
+
+		return new JobAdmin(std::move(jobs));
 	}
 
 private:
@@ -908,14 +965,16 @@ public:
 		int currentVertex = schedule.getInitialVertex();
 		int endTime = schedule.getTmax() + 1;
 
+		std::vector<std::shared_ptr<Job>> openJobs = jobAdmin.getOpenJobsInHighRewardOrder(jobTypes);
+
 		while(true) {
 			double bestRating = 0.0;
 			Job* bestJob = nullptr;
 
-			for(auto& job : jobAdmin.getOpenJobsInHighRewardOrder(jobTypes)) {
-				//if(!acceptableJob(*job, jobTypes)) {
-				//	continue;
-				//}
+			for(auto& job : openJobs) {
+				if(job->isReserved()) {
+					continue;
+				}
 				if(!canMoveAndExecute(*job, graph, workload, currentTime, endTime, currentVertex, VERTEX_NONE)) {
 					continue;
 				}
@@ -1079,6 +1138,61 @@ private:
 	std::vector<int> _jobTypes;
 };
 
+class WorkerManager {
+public:
+	WorkerManager(const std::vector<Worker>& workers) :
+		_workers(workers)
+	{
+	}
+
+	std::string toString() {
+		std::string result = format("Nworker=%d", _workers.size());
+		for(const auto& worker : _workers) {
+			result += "\n  " + worker.toString();
+		}
+		return result;
+	}
+
+	std::vector<std::vector<std::string>> makeOutput1ForA(int Tmax, Graph& graph, JobAdmin& jobAdmin) {
+		auto workloadDescendingOrder = [](const Worker& a, const Worker& b) {
+			return a.getWorkload() > b.getWorkload();
+		};
+		std::sort(_workers.begin(), _workers.end(), workloadDescendingOrder);
+		
+		std::vector<std::vector<std::string>> actionStrings(_workers.size());
+		for(auto& worker : _workers) {
+			actionStrings[worker.getWorkerId()] = worker.makeSchedule(Tmax, graph, jobAdmin);
+		}
+
+		return actionStrings;
+	}
+
+	static WorkerManager* createWorkerManagerFromStdin() {
+		int Nworker;
+		std::vector<Worker> workers;
+		std::vector<int> jobTypes;
+
+		std::cin >> Nworker;
+		for(int i = 0; i < Nworker; i++) {
+			int v, Lmax, Njobtype;
+			std::cin >> v >> Lmax >> Njobtype;
+
+			jobTypes.clear();
+			for(int j = 0; j < Njobtype; j++) {
+				int jobType;
+				std::cin >> jobType;
+				jobTypes.emplace_back(jobType);
+			}
+			workers.emplace_back(i, v, Lmax, jobTypes);
+		}
+
+		return new WorkerManager(std::move(workers));
+	}
+
+private:
+	std::vector<Worker> _workers;
+};
+
 // -----------------------------------------------------------------------------
 // Test
 // -----------------------------------------------------------------------------
@@ -1168,91 +1282,32 @@ class Main {
 public:
 	Main() {}
 
-	void readInput() {
+	void readInputForA() {
 		// Time
 		std::cin >> _Tmax;
 
 		// Graph
-		std::cin >> _Nv >> _Ne;
-		std::vector<Edge> edges;
-		for(int i = 0; i < _Ne; i++) {
-			int u, v, d;
-			std::cin >> u >> v >> d;
-			edges.emplace_back(u, v, d);
-		}
-		_graph = new Graph(std::move(edges));
+		_graph = Graph::createGraphFromStdin();
 
 		// Worker
-		std::cin >> _Nworker;
-		std::vector<int> jobTypes;
-		for(int i = 0; i < _Nworker; i++) {
-			int v, Lmax, Njobtype;
-			std::cin >> v >> Lmax >> Njobtype;
-
-			jobTypes.clear();
-			for(int j = 0; j < Njobtype; j++) {
-				int jobType;
-				std::cin >> jobType;
-				jobTypes.emplace_back(jobType);
-			}
-			_workers.emplace_back(i, v, Lmax, jobTypes);
-		}
+		_workerManager = WorkerManager::createWorkerManagerFromStdin();
 
 		// Job
-		std::cin >> _Njob;
-		std::vector<std::shared_ptr<Job>> jobs;
-		std::vector<int> rewards;
-		std::vector<int> priorJobIds;
-		for(int i = 0; i < _Njob; i++) {
-			int jobId, jobType, Ntask, vertex, Nreward;
-			std::cin >> jobId >> jobType >> Ntask >> vertex >> Nreward;
+		_jobAdmin = JobAdmin::createJobAdminFromStdin();
 
-			rewards.clear();
-			for(int j = 0; j < Nreward; j++) {
-				int t, y;
-				std::cin >> t >> y;
-				rewards.emplace_back(t);
-				rewards.emplace_back(y);
-			}
-
-			int Ndepend;
-			std::cin >> Ndepend;
-			priorJobIds.clear();
-			for(int j = 0; j < Ndepend; j++) {
-				int priorJobId;
-				std::cin >> priorJobId;
-				priorJobIds.emplace_back(priorJobId);
-			}
-			jobs.emplace_back(std::make_shared<Job>(jobId, jobType, Ntask, vertex, rewards, priorJobIds));
-		}
-		_jobAdmin = new JobAdmin(std::move(jobs));
-
-		Log_info("Tmax=      " + std::to_string(_Tmax));
-		Log_info("Nv=        " + std::to_string(_Nv));
-		Log_info("Ne=        " + std::to_string(_Ne));
-		Log_info("Nworker=   " + std::to_string(_Nworker));
-		for(int i = 0; i < _Nworker; i++) {
-			Log_info("             " + _workers[i].toString());
-		}
-		Log_info("Njob=      " + std::to_string(_Njob));
-		Log_info("             " + _jobAdmin->toString());
+		Log_info(format("Tmax=%d", _Tmax));
+		Log_info(_graph->toString());
+		Log_info(_workerManager->toString());
+		Log_info(_jobAdmin->toString());
 	}
 
-	void run() {
-		auto workloadDescendingOrder = [](const Worker& a, const Worker& b) {
-			return a.getWorkload() > b.getWorkload();
-		};
-		std::sort(_workers.begin(), _workers.end(), workloadDescendingOrder);
-		
-		std::vector<std::vector<std::string>> actionStrings(_workers.size());
-		for(auto& worker : _workers) {
-			actionStrings[worker.getWorkerId()] = worker.makeSchedule(_Tmax, *_graph, *_jobAdmin);
-		}
+	void runForA() {
+		std::vector<std::vector<std::string>> actionStrings = _workerManager->makeOutput1ForA(_Tmax, *_graph, *_jobAdmin);
 		uint64_t elapsedTimeMillisec = _clock.getElapsedTimeMillisec();
 
 		// Output
 		for(int t = 0; t < _Tmax; t++) {
-			for(size_t i = 0; i < _workers.size(); i++) {
+			for(size_t i = 0; i < actionStrings.size(); i++) {
 				Log_info(format("t=%03d, action=\"%s\"", t+1, actionStrings[i][t].c_str()));
 				std::cout << actionStrings[i][t] << std::endl;
 			}
@@ -1269,14 +1324,8 @@ public:
 private:
 	int _Tmax;
 
-	int _Nv;
-	int _Ne;
 	Graph* _graph;
-
-	int _Nworker;
-	std::vector<Worker> _workers;
-
-	int _Njob;
+	WorkerManager* _workerManager;
 	JobAdmin* _jobAdmin;
 
 	Clock _clock;
@@ -1286,8 +1335,12 @@ int main() {
 	//TestAll();
 
 	Main main;
-	main.readInput();
-	main.run();
+
+#ifdef ProblemA
+	main.readInputForA();
+	main.runForA();
+#else // ProblemA
+#endif // ProblemA
 
 	return 0;
 }
