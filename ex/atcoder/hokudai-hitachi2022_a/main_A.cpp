@@ -306,6 +306,92 @@ private:
 };
 
 // -----------------------------------------------------------------------------
+// Weather
+// -----------------------------------------------------------------------------
+class Weather {
+public:
+	Weather(int Tmax, int Tweather, int Nweather, const std::vector<std::vector<double>>& tpm, const std::vector<int>& limitConstants) :
+		_Tmax(Tmax),
+		_Tweather(Tweather),
+		_Nweather(Nweather),
+		_tpm(tpm),
+		_limitConstants(limitConstants),
+		_forecasts(Tmax / Tweather, std::vector<double>(Tweather)),
+		_currentWeather()
+	{}
+
+	std::string toString() {
+		std::string result = format("Tweather=%d, Nweather=%d\n", _Tweather, _Nweather);
+
+		result += "  tpm:\n";
+		for(int i = 0; i < _Nweather; i++) {
+			result += "    ";
+			for(int j = 0; j < _Nweather; j++) {
+				result += format("%03lf, ", _tpm[i][j]);
+			}
+			result += "\n";
+		}
+
+		result += "  limitConstants: " + to_string(_limitConstants) + "\n";
+		result += "  forecasts:";
+		for(size_t i = 0; i < _forecasts.size(); i++) {
+			result += "\n    ";
+			for(size_t j = 0; j < _forecasts[i].size(); j++) {
+				result += format("%03lf, ", _forecasts[i][j]);
+			}
+		}
+		return result;
+	}
+
+	void readWeatherForecastFromStdin(int time) {
+		if(((time - 1) % _Tweather) != 0) {
+			return;
+		}
+
+		for(size_t timeIndex = (time - 1) / _Tweather; timeIndex < _forecasts.size(); timeIndex++) {
+			int t;
+			std::cin >> t;
+			for(int i = 0; i < _Tweather; i++) {
+				std::cin >> _forecasts[timeIndex][i];
+			}
+		}
+	}
+	void readCurrentWeatherFromStdin() {
+		std::cin >> _currentWeather;
+	}
+
+	static Weather* createWeatherFromStdin(int Tmax) {
+		int Tweather, Nweather;
+		std::cin >> Tweather >> Nweather;
+
+		std::vector<std::vector<double>> tpm(Nweather); // transition probability matrix
+		for(int i = 0; i < Nweather; i++) {
+			tpm.resize(Nweather);
+
+			for(int j = 0; j < Nweather; j++) {
+				std::cin >> tpm[i][j];
+			}
+		}
+
+		std::vector<int> limitConstants(Nweather);
+		for(int i = 0; i < Nweather; i++) {
+			std::cin >> limitConstants[i];
+		}
+
+		return new Weather(Tmax, Tweather, Nweather, std::move(tpm), std::move(limitConstants));
+	}
+
+private:
+	int _Tmax;
+	int _Tweather;
+	int _Nweather;
+	std::vector<std::vector<double>> _tpm; // transition probability matrix
+	std::vector<int> _limitConstants;
+	std::vector<std::vector<double>> _forecasts;
+	int _currentWeather;
+};
+
+// -----------------------------------------------------------------------------
 // RewardFunction, Job, JobAdmin
 // -----------------------------------------------------------------------------
 class RewardFunction{
@@ -379,26 +465,39 @@ private:
 
 class Job {
 public:
-	Job(int jobId, int jobType, int numofTasks, int vertex, const std::vector<int>& rewards, const std::vector<int>& priorJobIds) :
+	Job(int jobId, int jobType, int numofTasks, int vertex,
+			double penalty, double weatherDependency, bool mandatory,
+			const std::vector<int>& rewards, const std::vector<int>& priorJobIds) :
 		_jobId(jobId),
 		_jobType(jobType),
 		_numofTasks(numofTasks),
 		_vertex(vertex),
+		_penalty(penalty),
+		_weatherDependency(weatherDependency),
+		_mandatory(mandatory),
 		_rewardFunction(rewards),
 		_priorJobIds(priorJobIds),
 		_allPriorJobIds(),
-		_reserved(false)
+		_reserved(false),
+		_remainingTasks(numofTasks)
 	{}
 
 	std::string toString() const {
-		return format("jobId=%d, jobType=%d, numofTasks=%d, vertex=%d, rewardFunction=%s, priorJobIds=%s",
-				_jobId, _jobType, _numofTasks, _vertex, _rewardFunction.toString().c_str(), to_string(_priorJobIds).c_str());
+		std::string result = format("jobId=%d, jobType=%d, numofTasks=%d, vertex=%d, penalty=%lf, weatherDependency=%lf, mandatory=%d",
+									_jobId, _jobType, _numofTasks, _vertex, _penalty, _weatherDependency, _mandatory);
+		result += format("\nrewardFunction=%s", _rewardFunction.toString().c_str());
+		result += format("\npriorJobIds=%s", to_string(_priorJobIds).c_str());
+		return result;
 	}
 
 	int getJobId() const { return _jobId; }
 	int getJobType() const { return _jobType; }
 	int getNumofTasks() const { return _numofTasks; }
 	int getVertex() const { return _vertex; }
+
+	double getPenalty() { return _penalty; }
+	double getWeatherDependency() { return _weatherDependency; }
+	bool isMandatory() { return _mandatory; }
 
 	int getStartTime() const { return _rewardFunction.getStartTime(); }
 	int getEndTime() const { return _rewardFunction.getEndTime(); }
@@ -437,6 +536,10 @@ public:
 		_reserved = true;
 	}
 	bool isReserved() const { return _reserved; }
+	void updateRemainingTasks(int remainingTasks) {
+		_remainingTasks = remainingTasks;
+	}
+	int getRemainingTasks() { return _remainingTasks; }
 
 	std::vector<int> getTaskListToExecute(int workload) const {
 		std::vector<int> taskList;
@@ -454,11 +557,18 @@ private:
 	int _jobType;
 	int _numofTasks;
 	int _vertex;
+
+	double _penalty;
+	double _weatherDependency;
+	bool _mandatory;
+
 	RewardFunction _rewardFunction;
+
 	std::vector<int> _priorJobIds;
 	std::set<int> _allPriorJobIds;
 
 	bool _reserved;
+	int _remainingTasks;
 };
 
 class JobAdmin {
@@ -482,7 +592,7 @@ public:
 		return format("Njob=%d", _allJobs.size());
 	}
 
-	const std::vector<std::shared_ptr<Job>>& getAllJobsInHighRewardOrder() const { return _allJobs; }
+	const std::vector<std::shared_ptr<Job>>& getAllJobs() const { return _allJobs; }
 	const std::shared_ptr<Job> getJob(int jobId) { return _job[jobId]; }
 
 	std::vector<std::shared_ptr<Job>> getOpenJobsInHighRewardOrder(const std::vector<int>& jobTypes, size_t size=0) const {
@@ -535,41 +645,27 @@ public:
 		return result;
 	}
 
+	void readJobInfoFromStdin() {
+		int Nselected;
+		std::cin >> Nselected;
+
+		for(int i = 0; i < Nselected; i++) {
+			int jobId, remainingTasks;
+			std::cin >> jobId >> remainingTasks;
+
+			_job[jobId]->updateRemainingTasks(remainingTasks);
+		}
+	}
+
 	static bool rewardDescendingOrder(const std::shared_ptr<Job>& job1, const std::shared_ptr<Job>& job2) {
 		return job1->getRewardPeakValue() > job2->getRewardPeakValue();
 	}
 
-	static JobAdmin* createJobAdminFromStdin() {
-		int Njob;
-		std::vector<std::shared_ptr<Job>> jobs;
-		std::vector<int> rewards;
-		std::vector<int> priorJobIds;
-
-		std::cin >> Njob;
-		for(int i = 0; i < Njob; i++) {
-			int jobId, jobType, Ntask, vertex, Nreward;
-			std::cin >> jobId >> jobType >> Ntask >> vertex >> Nreward;
-
-			rewards.clear();
-			for(int j = 0; j < Nreward; j++) {
-				int t, y;
-				std::cin >> t >> y;
-				rewards.emplace_back(t);
-				rewards.emplace_back(y);
-			}
-
-			int Ndepend;
-			std::cin >> Ndepend;
-			priorJobIds.clear();
-			for(int j = 0; j < Ndepend; j++) {
-				int priorJobId;
-				std::cin >> priorJobId;
-				priorJobIds.emplace_back(priorJobId);
-			}
-			jobs.emplace_back(std::make_shared<Job>(jobId, jobType, Ntask, vertex, rewards, priorJobIds));
-		}
-
-		return new JobAdmin(std::move(jobs));
+	static JobAdmin* createJobAdminFromStdinForA() {
+		return createJobAdminFromStdin(false);
+	}
+	static JobAdmin* createJobAdminFromStdinForB() {
+		return createJobAdminFromStdin(true);
 	}
 
 private:
@@ -592,6 +688,49 @@ private:
 		recurse(job);
 		return result;
 	}
+
+	static JobAdmin* createJobAdminFromStdin(bool problemB) {
+		int Njob;
+		std::vector<std::shared_ptr<Job>> jobs;
+		std::vector<int> rewards;
+		std::vector<int> priorJobIds;
+
+		std::cin >> Njob;
+		for(int i = 0; i < Njob; i++) {
+			int jobId, jobType, Ntask, vertex;
+			std::cin >> jobId >> jobType >> Ntask >> vertex;
+
+			double penalty = 0.0;
+			double weatherDependency = 0.0;
+			bool mandatory = false;
+			if(problemB) {
+				std::cin >> penalty >> weatherDependency >> mandatory;
+			}
+
+			int Nreward;
+			std::cin >> Nreward;
+			rewards.clear();
+			for(int j = 0; j < Nreward; j++) {
+				int t, y;
+				std::cin >> t >> y;
+				rewards.emplace_back(t);
+				rewards.emplace_back(y);
+			}
+
+			int Ndepend;
+			std::cin >> Ndepend;
+			priorJobIds.clear();
+			for(int j = 0; j < Ndepend; j++) {
+				int priorJobId;
+				std::cin >> priorJobId;
+				priorJobIds.emplace_back(priorJobId);
+			}
+			jobs.emplace_back(std::make_shared<Job>(jobId, jobType, Ntask, vertex, penalty, weatherDependency, mandatory, rewards, priorJobIds));
+		}
+
+		return new JobAdmin(std::move(jobs));
+	}
+
 };
 
 // -----------------------------------------------------------------------------
@@ -878,6 +1017,28 @@ public:
 		return result;
 	}
 
+	void makeJobScheduleAndActionStrings(std::vector<int>& jobSchedule, std::vector<std::string>& actionStrings) {
+		jobSchedule.clear();
+		actionStrings.clear();
+
+		jobSchedule.resize(_Tmax);
+		actionStrings = std::move(makeActionStrings());
+
+		int start = 0;
+		char dummyCharArray[16];
+		int jobId;
+		int dummyInt;
+		for(size_t i = 0; i < actionStrings.size(); i++) {
+			if(actionStrings[i].find("execute") != std::string::npos) {
+				sscanf(actionStrings[i].c_str(), "%s %d %d", dummyCharArray, &jobId, &dummyInt);
+				for(size_t j = start; j <= i; j++) {
+					jobSchedule[j] = jobId;
+				}
+				start = i + 1;
+			}
+		}
+	}
+
 private:
 	int _Tmax;
 	int _initialVertex;
@@ -887,7 +1048,7 @@ private:
 int Schedule::START_TIME = 1;
 
 // -----------------------------------------------------------------------------
-// Worker
+// Worker, WorkerManager
 // -----------------------------------------------------------------------------
 class Worker {
 public:
@@ -910,7 +1071,7 @@ public:
 	int getWorkload() const { return _workload; }
 	const std::vector<int>& getJobTypes() const { return _jobTypes; }
 
-	std::vector<std::string> makeSchedule(int Tmax, Graph& graph, JobAdmin& jobAdmin) const {
+	Schedule makeSchedule(int Tmax, Graph& graph, JobAdmin& jobAdmin) const {
 		Schedule schedule(Tmax, _initialVertex);
 
 		makeGreedySchedule(schedule, graph, jobAdmin, _jobTypes, _workload);
@@ -921,7 +1082,7 @@ public:
 		schedule.fillStayInAllBlankTimeSlots();
 		Log_debug(format("%s", schedule.toString().c_str()));
 
-		return schedule.makeActionStrings();
+		return schedule;
 	}
 
 	static bool acceptableJob(const Job& job, const std::vector<int>& jobTypes) {
@@ -987,6 +1148,26 @@ public:
 				if(rating > bestRating) {
 					bestRating = rating;
 					bestJob = &(*job);
+				}
+
+				for(auto& nextJob : openJobs) {
+					if(nextJob == job) {
+						continue;
+					}
+					if(nextJob->isReserved()) {
+						continue;
+					}
+					if(!canMoveAndExecute(*nextJob, graph, workload, currentTime + travelTime + executionTime, endTime, job->getVertex(), VERTEX_NONE)) {
+						continue;
+					}
+					int travelTime2 = graph.getDistance(job->getVertex(), nextJob->getVertex());
+					double reward2 = nextJob->getExpectedReward(currentTime + travelTime + executionTime + travelTime2, workload);
+					int executionTime2 = nextJob->getExecutionTime(workload);
+					rating = (reward + reward2) / (travelTime + executionTime + travelTime2 + executionTime2);
+					if(rating > bestRating) {
+						bestRating = rating;
+						bestJob = &(*job);
+					}
 				}
 			}
 
@@ -1141,9 +1322,11 @@ private:
 class WorkerManager {
 public:
 	WorkerManager(const std::vector<Worker>& workers) :
-		_workers(workers)
-	{
-	}
+		_workers(workers),
+		_scheduleChangePenalty(),
+		_scheduleChangeDecayRate(),
+		_scheduleKeepRewardRate()
+	{}
 
 	std::string toString() {
 		std::string result = format("Nworker=%d", _workers.size());
@@ -1161,10 +1344,65 @@ public:
 		
 		std::vector<std::vector<std::string>> actionStrings(_workers.size());
 		for(auto& worker : _workers) {
-			actionStrings[worker.getWorkerId()] = worker.makeSchedule(Tmax, graph, jobAdmin);
+			Schedule schedule = worker.makeSchedule(Tmax, graph, jobAdmin);
+			actionStrings[worker.getWorkerId()] = schedule.makeActionStrings();
 		}
 
 		return actionStrings;
+	}
+
+	void readScheduleInfoFromStdin() {
+		std::cin >> _scheduleChangePenalty >> _scheduleChangeDecayRate >> _scheduleKeepRewardRate;
+	}
+	void readWorkerInfoFromStdin() {
+		int workerId, u, v, dFromU;
+
+		for(auto& worker : _workers) {
+			(void)worker;
+			std::cin >> workerId >> u >> v >> dFromU;
+		}
+	}
+
+	void writeScheduledJobIdsToStdout(int Tmax, Graph& graph, JobAdmin& jobAdmin, Weather& weather) {
+		std::set<int> scheduledJobIds;
+		for(auto& job : jobAdmin.getAllJobs()) {
+			if(job->isMandatory()) {
+				scheduledJobIds.emplace(job->getJobId());
+
+				for(int priorJobId : job->getAllPriorJobIds()) {
+					scheduledJobIds.emplace(priorJobId);
+				}
+			}
+		}
+
+		std::cout << scheduledJobIds.size();
+		for(int jobId : scheduledJobIds) {
+			std::cout << " " << jobId;
+		}
+		std::cout << std::endl;
+	}
+	void writeScheduleAndActionToStdout(int Tmax, int time, Graph& graph, JobAdmin& jobAdmin, Weather& weather) {
+		static bool atFirst = true;
+		if(atFirst) {
+			for(size_t i = 0; i < _workers.size(); i++) {
+				_schedules.emplace_back(_workers[i].makeSchedule(Tmax, graph, jobAdmin));
+			}
+			atFirst = false;
+		}
+
+		std::vector<int> jobSchedule;
+		std::vector<std::string> actionStrings;
+
+		if(time == 1) {
+			// output all schedule
+
+		} else {
+			// output updated schedule
+		}
+
+		// output action of the time
+
+		// TODO: here
 	}
 
 	static WorkerManager* createWorkerManagerFromStdin() {
@@ -1191,6 +1429,11 @@ public:
 
 private:
 	std::vector<Worker> _workers;
+	std::vector<Schedule> _schedules;
+
+	double _scheduleChangePenalty;
+	double _scheduleChangeDecayRate;
+	double _scheduleKeepRewardRate;
 };
 
 // -----------------------------------------------------------------------------
@@ -1239,9 +1482,12 @@ static void TestJob() {
 	int jobType = 2;
 	int Ntask = 9;
 	int vertex = 3;
+	double penalty = 0.0;
+	double weatherDependency = 0.0;
+    bool mandatory = false;
 	std::vector<int> rewards = {5, 0, 10, 5, 15, 0};
 	std::vector<int> priorJobIds = {4};
-	Job job(jobId, jobType, Ntask, vertex, rewards, priorJobIds);
+	Job job(jobId, jobType, Ntask, vertex, penalty, weatherDependency, mandatory, rewards, priorJobIds);
 
 	EQUAL(job.getStartTime(), 6);
 	EQUAL(job.getEndTime(), 15);
@@ -1293,7 +1539,7 @@ public:
 		_workerManager = WorkerManager::createWorkerManagerFromStdin();
 
 		// Job
-		_jobAdmin = JobAdmin::createJobAdminFromStdin();
+		_jobAdmin = JobAdmin::createJobAdminFromStdinForA();
 
 		Log_info(format("Tmax=%d", _Tmax));
 		Log_info(_graph->toString());
@@ -1321,13 +1567,69 @@ public:
 		Log_info(format("Time=  %llu", elapsedTimeMillisec));
 	}
 
+	void readInputForB() {
+		// Time
+		std::cin >> _Tmax;
+
+		// Graph
+		_graph = Graph::createGraphFromStdin();
+
+		// Worker
+		_workerManager = WorkerManager::createWorkerManagerFromStdin();
+
+		// Job
+		_jobAdmin = JobAdmin::createJobAdminFromStdinForB();
+
+		// Weather
+		_weather = Weather::createWeatherFromStdin(_Tmax);
+
+		// Schedule
+		_workerManager->readScheduleInfoFromStdin();
+
+		// Weather forecast
+		_weather->readWeatherForecastFromStdin(1);
+
+		Log_info(format("Tmax=%d", _Tmax));
+		Log_info(_graph->toString());
+		Log_info(_workerManager->toString());
+		Log_info(_jobAdmin->toString());
+		Log_info(_weather->toString());
+	}
+
+	void runForB() {
+
+		// Output 1
+		_workerManager->writeScheduledJobIdsToStdout(_Tmax, *_graph, *_jobAdmin, *_weather);
+
+		for(int t = 1; t <= _Tmax; t++) {
+			// Input 2
+			_weather->readCurrentWeatherFromStdin();
+			_jobAdmin->readJobInfoFromStdin();
+			_workerManager->readWorkerInfoFromStdin();
+			_weather->readWeatherForecastFromStdin(t);
+
+			// Output 2
+			_workerManager->writeScheduleAndActionToStdout(_Tmax, t, *_graph, *_jobAdmin, *_weather);
+		}
+
+		uint64_t elapsedTimeMillisec = _clock.getElapsedTimeMillisec();
+
+		// Score
+		uint64_t score;
+		std::cin >> score;
+
+		Log_info(format("Score= %llu", score));
+		Log_info(format("Time=  %llu", elapsedTimeMillisec));
+	}
+
 private:
 	int _Tmax;
-
 	Graph* _graph;
 	WorkerManager* _workerManager;
 	JobAdmin* _jobAdmin;
+	Weather* _weather;
 
+	// debug
 	Clock _clock;
 };
 
@@ -1336,10 +1638,13 @@ int main() {
 
 	Main main;
 
+#define ProblemA
 #ifdef ProblemA
 	main.readInputForA();
 	main.runForA();
 #else // ProblemA
+	main.readInputForB();
+	main.runForB();
 #endif // ProblemA
 
 	return 0;
