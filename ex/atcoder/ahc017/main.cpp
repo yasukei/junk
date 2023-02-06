@@ -85,10 +85,6 @@ public:
 		return _id == rhs._id;
 	}
 
-	std::string toString() const {
-		return format("id: %d, u: %d, v: %d, w: %d", _id, _u, _v, _w);
-	}
-
 	uint16_t id() const { return _id; }
 	uint16_t u() const { return _u; }
 	uint16_t v() const { return _v; }
@@ -143,14 +139,13 @@ public:
 		return _queue.empty();
 	}
 
-	void enque(const PriorityQueueItem& item) {
-		_queue.push(item);
+	void enque(uint32_t distance, uint32_t vertex) {
+		_queue.emplace(distance, vertex);
 	}
 
-	PriorityQueueItem deque() {
-		PriorityQueueItem item = _queue.top();
+	void deque(PriorityQueueItem& item) {
+		item = _queue.top();
 		_queue.pop();
-		return item;
 	}
 
 private:
@@ -188,7 +183,6 @@ public:
 		_totalDistance = temp * 2;
 	}
 
-	uint32_t getValue(size_t i, size_t j) { return _distanceMatrix[i][j]; }
 	uint64_t getTotalDistance() { return _totalDistance; }
 
 	std::vector<int> getVerticesInMaxDistanceAscendingOrder() const {
@@ -220,16 +214,16 @@ public:
 		return result;
 	}
 
-	void saveAs(const std::string& filePath="matrix.csv") {
-		std::ofstream outputfile(filePath);
+	//void saveAs(const std::string& filePath="matrix.csv") {
+	//	std::ofstream outputfile(filePath);
 
-		for(size_t i = 0; i < _distanceMatrix.size(); i++) {
-			for(size_t j = 0; j < _distanceMatrix.size(); j++) {
-				outputfile << _distanceMatrix[i][j] << ", ";
-			}
-			outputfile << std::endl;
-		}
-	}
+	//	for(size_t i = 0; i < _distanceMatrix.size(); i++) {
+	//		for(size_t j = 0; j < _distanceMatrix.size(); j++) {
+	//			outputfile << _distanceMatrix[i][j] << ", ";
+	//		}
+	//		outputfile << std::endl;
+	//	}
+	//}
 
 private:
 	std::vector<std::vector<uint32_t>> _distanceMatrix;
@@ -245,14 +239,16 @@ private:
 
 	void __initializeDistanceMatrix(uint16_t vertex, const std::vector<std::vector<Edge>>& edgesOnVertex) {
 		static PriorityQueue priorityQueue;
+		PriorityQueueItem item;
 
-		priorityQueue.enque(PriorityQueueItem(0, vertex));
+		priorityQueue.enque(0, vertex);
 
 		while(!priorityQueue.empty()) {
-			PriorityQueueItem item = priorityQueue.deque();
+			priorityQueue.deque(item);
 			for(const Edge& edge : edgesOnVertex[item.vertex]) {
-				if(__updateDistanceMatrix(vertex, edge.v(), item.distance + edge.w())) {
-					priorityQueue.enque(PriorityQueueItem(item.distance + edge.w(), edge.v()));
+				uint32_t distance = item.distance + edge.w();
+				if(__updateDistanceMatrix(vertex, edge.v(), distance)) {
+					priorityQueue.enque(distance, edge.v());
 				}
 			}
 		}
@@ -288,11 +284,12 @@ public:
 		}
 		return normalizedEdges;
 	}
-	UnorderedSetofEdge denormalize(const UnorderedSetofEdge& edges) {
+
+	UnorderedSetofEdge denormalize(const UnorderedSetofEdge& edges) const {
 		UnorderedSetofEdge denormalizedEdges;
 
 		for(const Edge& edge : edges) {
-			denormalizedEdges.emplace(edge.id(), _rmap[edge.u()], _rmap[edge.v()], edge.w());
+			denormalizedEdges.emplace(edge.id(), _rmap.at(edge.u()), _rmap.at(edge.v()), edge.w());
 		}
 		return denormalizedEdges;
 	}
@@ -453,7 +450,7 @@ private:
 				dropEdgesForEachDay[bestIndex].emplace(edge);
 				alreadyDropped.emplace(edge);
 			}
-			if(clock.getElapsedTimeMillisec() > 5500) {
+			if(clock.getElapsedTimeMillisec() > 5750) {
 				Log_debug("break!");
 				break;
 			}
@@ -495,7 +492,18 @@ private:
 		std::vector<UnorderedSetofEdge> dropEdgesForEachDay(D);
 		UnorderedSetofEdge alreadyDropped;
 
-		const size_t numofPartitions = 7;
+		size_t numofPartitions;
+		if(N < 600) {
+			numofPartitions = 4;
+		} else if(N < 700) {
+			numofPartitions = 5;
+		} else if(N < 800) {
+			numofPartitions = 5;
+		} else if(N < 900) {
+			numofPartitions = 6;
+		} else {
+			numofPartitions = 7;
+		}
 		std::unordered_set<size_t> targetPartition = {0};
 		for(size_t i = 0; i < numofPartitions; i++) {
 			if(targetPartition.find(i) == targetPartition.end()) {
@@ -516,27 +524,36 @@ private:
 			}
 		}
 
+		auto incrementDay = [=](uint32_t day) {
+			return day == D ? 1 : day + 1;
+		};
+
 		uint32_t day = 1;
 		for(size_t i = 0; i < N; i++) {
 			uint32_t vertex = verticesInMaxDistanceAscending[i];
+
 			for(size_t j = 0; j < _edgesOnVertex[vertex].size(); j++) {
 				Edge edge = _edgesOnVertex[vertex][j];
 				if(alreadyDropped.find(edge) != alreadyDropped.end()) {
 					continue;
 				}
+
+				// prevent all edges at one vertex from going to the same day
+				size_t counter = 0;
+				for(const Edge& edge : _edgesOnVertex[vertex]) {
+					counter += dropEdgesForEachDay[day-1].count(edge);
+				}
+				if(counter == _edgesOnVertex[vertex].size() - 1) {
+					day = incrementDay(day);
+				}
+
 				while(dropEdgesForEachDay[day-1].size() == K) {
-					day++;
-					if(day > D) {
-						day = 1;
-					}
+					day = incrementDay(day);
 				}
 				dropEdgesForEachDay[day-1].emplace(edge);
 				schedule[edge.id()] = day;
 				alreadyDropped.emplace(edge);
-				day++;
-				if(day > D) {
-					day = 1;
-				}
+				day = incrementDay(day);
 			}
 		}
 
@@ -655,6 +672,7 @@ int main() {
 	Log_debug(format("Edge:              %u", sizeof(Edge)));
 	Log_debug(format("PriorityQueueItem: %u", sizeof(PriorityQueueItem)));
 	Log_debug(format("PriorityQueue:     %u", sizeof(PriorityQueue)));
+	Log_debug(format("DistanceMatrix:    %u", sizeof(DistanceMatrix)));
 	Log_debug(format("Graph:             %u", sizeof(Graph)));
 	Log_debug(format("Main:              %u", sizeof(Main)));
 	return 0;
