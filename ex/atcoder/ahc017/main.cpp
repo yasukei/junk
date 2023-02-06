@@ -92,31 +92,38 @@ private:
 // -----------------------------------------------------------------------------
 class Edge {
 public:
-	Edge(uint16_t u, uint16_t v, uint32_t w)  :
+	Edge(uint16_t id, uint16_t u, uint16_t v, uint32_t w)  :
+		_id(id),
 		_u(u),
 		_v(v),
 		_w(w)
 	{}
 
 	bool operator==(const Edge& rhs) const {
-		return _u == rhs._u && _v == rhs._v && _w == rhs._w;
+		return _id == rhs._id;
 	}
 
 	std::string toString() const {
-		return format("u: %d, v: %d, w: %d", _u, _v, _w);
+		return format("id: %d, u: %d, v: %d, w: %d", _id, _u, _v, _w);
 	}
 
+	uint16_t id() const { return _id; }
 	uint16_t u() const { return _u; }
 	uint16_t v() const { return _v; }
 	uint32_t w() const { return _w; }
 
+	Edge getReversedEdge() const {
+		return Edge(_id, _v, _u, _w);
+	}
+
 	struct HashFunction {
 		size_t operator()(const Edge& self) const {
-			return (self._u << 16) | self._v;
+			return self._id;
 		}
 	};
 
 private:
+	uint16_t _id;
 	uint16_t _u;
 	uint16_t _v;
 	uint32_t _w;
@@ -143,17 +150,77 @@ private:
 	int _y;
 };
 
+//class Trajectory {
+//public:
+//	Trajectory(uint32_t distance, const std::vector<uint16_t>& vertices) :
+//		_distance(distance),
+//		_vertices(vertices)
+//	{}
+//	Trajectory(const Trajectory& trajectory, uint32_t distance, uint16_t vertex) :
+//		_distance(trajectory._distance),
+//		_vertices(trajectory._vertices)
+//	{
+//		_distance += distance;
+//		_vertices.emplace_back(vertex);
+//	}
+//
+//	uint32_t getDistance() { return _distance; }
+//	uint16_t getStartVertex() { return _vertices.front(); }
+//	uint16_t getEndVertex() { return _vertices.back(); }
+//
+//	struct Compare {
+//		bool operator()(const Trajectory& a, const Trajectory& b) const {
+//			return a._distance > b._distance;
+//		}
+//	};
+//
+//private:
+//	uint32_t _distance;
+//	std::vector<uint16_t> _vertices;
+//};
+//
+//class PriorityQueue {
+//public:
+//	PriorityQueue() :
+//		_queue()
+//	{}
+//
+//	bool empty() {
+//		return _queue.empty();
+//	}
+//
+//	void enque(uint32_t distance, const std::vector<uint16_t>& vertices) {
+//		_queue.emplace(distance, vertices);
+//	}
+//	void enque(const Trajectory& trajectory, uint32_t distance, uint16_t vertex) {
+//		_queue.emplace(trajectory, distance, vertex);
+//	}
+//
+//	Trajectory deque() {
+//		Trajectory trajectory = _queue.top();
+//		_queue.pop();
+//		return trajectory;
+//	}
+//
+//private:
+//	std::priority_queue<Trajectory, std::vector<Trajectory>, Trajectory::Compare> _queue;
+//};
+
 struct PriorityQueueItem {
 	uint32_t distance;
 	uint32_t vertex;
 
+	PriorityQueueItem() :
+		distance(),
+		vertex()
+	{}
 	PriorityQueueItem(uint32_t distance, uint32_t vertex) :
 		distance(distance),
 		vertex(vertex)
 	{}
 
 	struct Compare {
-		bool operator()(const PriorityQueueItem& a, PriorityQueueItem& b) const {
+		bool operator()(const PriorityQueueItem& a, const PriorityQueueItem& b) const {
 			return a.distance > b.distance;
 		}
 	};
@@ -162,28 +229,25 @@ struct PriorityQueueItem {
 class PriorityQueue {
 public:
 	PriorityQueue() :
-		_priorityQueue()
+		_queue()
 	{}
 
-	bool empty() const {
-		return _priorityQueue.empty();
+	bool empty() {
+		return _queue.empty();
 	}
 
 	void enque(const PriorityQueueItem& item) {
-		_priorityQueue.push(item);
+		_queue.push(item);
 	}
 
 	PriorityQueueItem deque() {
-		PriorityQueueItem item = _priorityQueue.top();
-		_priorityQueue.pop();
+		PriorityQueueItem item = _queue.top();
+		_queue.pop();
 		return item;
 	}
 
 private:
-	std::priority_queue<
-		PriorityQueueItem,
-		std::vector<PriorityQueueItem>,
-		PriorityQueueItem::Compare> _priorityQueue;
+	std::priority_queue<PriorityQueueItem, std::vector<PriorityQueueItem>, PriorityQueueItem::Compare> _queue;
 };
 
 #define UNREACHABLE_DISTANCE (1e+9)
@@ -202,7 +266,7 @@ public:
 		__initializeEdgesOnVertex();
 		__initializeDistance();
 	}
-	Graph(const Graph& graph, UnorderedSetofEdge edgesToDrop) :
+	Graph(const Graph& graph, const UnorderedSetofEdge& edgesToDrop) :
 		_N(graph._N),
 		_M(graph._M),
 		_originalEdges(graph._originalEdges),
@@ -220,28 +284,43 @@ public:
 	}
 
 	std::vector<int> makeSchedule(int D, int K) {
+#if 0
+		// debug
+		{
+			std::ofstream outputfile("matrix.csv");
+			for(size_t i = 0; i < _N; i++) {
+				for(size_t j = 0; j < _N; j++) {
+					outputfile << _distanceMatrix[i][j] << ", ";
+				}
+				outputfile << std::endl;
+			}
+		}
+#endif
+
 		//return __makeRandomSchedule(D, K);
-		return __makeFastestSchedule(D, K);
+		return __makeScheduleInMaxDistanceOrder(D, K);
+		//return __makeAverageSchedule(D, K);
+		//return __makeFastestSchedule(D, K);
 	}
 
 private:
-	uint16_t _N;
-	uint16_t _M;
-	std::vector<Edge> _originalEdges;
+	const uint16_t _N;
+	const uint16_t _M;
+	const std::vector<Edge> _originalEdges;
 
 	UnorderedSetofEdge _availableEdges;
 	std::vector<std::vector<Edge>> _edgesOnVertex;
-	std::vector<std::vector<uint32_t>> _distanceMatrix;
+#define N_MAX 1000
+	std::array<std::array<uint32_t, N_MAX>, N_MAX> _distanceMatrix;
 	uint64_t _totalDistance;
 
 	void __initializeEdgesOnVertex() {
 		for(const Edge& edge : _availableEdges) {
 			uint16_t u = edge.u();
 			uint16_t v = edge.v();
-			uint32_t w = edge.w();
 
-			_edgesOnVertex[u-1].emplace_back(u, v, w);
-			_edgesOnVertex[v-1].emplace_back(v, u, w);
+			_edgesOnVertex[u-1].emplace_back(edge);
+			_edgesOnVertex[v-1].emplace_back(edge.getReversedEdge());
 		}
 	}
 
@@ -260,7 +339,6 @@ private:
 
 		while(!priorityQueue.empty()) {
 			PriorityQueueItem item = priorityQueue.deque();
-
 			for(const Edge& edge : _edgesOnVertex[item.vertex-1]) {
 				if(__updateDistanceMatrix(vertex, edge.v(), item.distance + edge.w())) {
 					priorityQueue.enque(PriorityQueueItem(item.distance + edge.w(), edge.v()));
@@ -269,29 +347,44 @@ private:
 		}
 	}
 
+	//void __initializeDistanceMatrix(uint16_t vertex) {
+	//	static PriorityQueue priorityQueue;
+
+	//	priorityQueue.enque(0, std::vector<uint16_t>{vertex});
+
+	//	while(!priorityQueue.empty()) {
+	//		Trajectory trajectory = priorityQueue.deque();
+	//		for(const Edge& edge : _edgesOnVertex[trajectory.getEndVertex()-1]) {
+	//			if(__updateDistanceMatrix(vertex, edge.v(), trajectory.getDistance() + edge.w())) {
+	//				priorityQueue.enque(trajectory, edge.w(), edge.v());
+	//			}
+	//		}
+	//	}
+	//}
+
 	void __initializeDistance() {
-		_distanceMatrix.resize(_N);
 		for(auto& row : _distanceMatrix) {
-			row.resize(_N, UNREACHABLE_DISTANCE);
+			row.fill(UNREACHABLE_DISTANCE);
 		}
-		for(size_t i = 0; i < _distanceMatrix.size(); i++) {
+		for(size_t i = 0; i < _N; i++) {
 			_distanceMatrix[i][i] = 0;
 		}
 
-		for(int vertex = 1; vertex <= _N; vertex++) {
+		for(uint16_t vertex = 1; vertex <= _N; vertex++) {
 			__initializeDistanceMatrix(vertex);
 		}
 
 		uint64_t temp = 0;
-		for(size_t i = 0; i < _distanceMatrix.size(); i++) {
-			for(size_t j = i + 1; j < _distanceMatrix.size(); j++) {
+		for(size_t i = 0; i < _N; i++) {
+			for(size_t j = i + 1; j < _N; j++) {
 				temp += _distanceMatrix[i][j];
 			}
 		}
 		_totalDistance = temp * 2;
+
 	}
 
-	uint64_t __calcScore(int D, std::vector<UnorderedSetofEdge> dropEdgesForEachDay) {
+	uint64_t __calcScore(int D, const std::vector<UnorderedSetofEdge>& dropEdgesForEachDay) {
 		double score = 0.0;
 		double N = _N;
 
@@ -323,7 +416,7 @@ private:
 		std::default_random_engine engine(0);
 		std::uniform_int_distribution<> dist(1, D);
 
-		for(int i = 0; i < 5; i++) {
+		for(int i = 0; i < 10; i++) {
 			std::vector<int> schedule(_M);
 			std::vector<UnorderedSetofEdge> dropEdgesForEachDay(D);
 			std::vector<int> remaining(D, K);
@@ -346,6 +439,73 @@ private:
 		}
 		Log_debug(format("Final score: %lu", bestScore));
 		return bestSchedule;
+	}
+
+	std::vector<int> __makeScheduleInMaxDistanceOrder(int D, int K) {
+		struct Temp {
+			uint32_t maxDistance;
+			uint32_t vertex;
+
+			struct Compare {
+				bool operator()(const Temp& a, const Temp& b) const {
+					return a.maxDistance < b.maxDistance;
+				}
+			};
+		};
+		std::vector<Temp> v(_N);
+		for(size_t i = 0; i < _N; i++) {
+			auto it = _distanceMatrix[i].begin();
+			std::advance(it, _N);
+			v[i].maxDistance = *std::max_element(_distanceMatrix[i].begin(), it);
+			v[i].vertex = i;
+		}
+		std::sort(v.begin(), v.end(), Temp::Compare());
+
+		std::vector<int> schedule(_M);
+		std::vector<UnorderedSetofEdge> dropEdgesForEachDay(D);
+		UnorderedSetofEdge alreadyDropped;
+		int day = 1;
+
+		for(size_t i = 0; i < _N; i++) {
+			uint32_t vertex = v[i].vertex;
+			for(size_t j = 0; j < _edgesOnVertex[vertex].size(); j++) {
+				Edge edge = _edgesOnVertex[vertex][j];
+				if(alreadyDropped.find(edge) != alreadyDropped.end()) {
+				//if(dropEdgesForEachDay[day-1].find(edge) != dropEdgesForEachDay[day-1].end()) {
+					continue;
+				}
+				schedule[edge.id()] = day;
+				dropEdgesForEachDay[day-1].emplace(edge);
+				alreadyDropped.emplace(edge);
+				day++;
+				if(day > D) {
+					day = 1;
+				}
+			}
+		}
+
+		uint64_t score = __calcScore(D, dropEdgesForEachDay);
+		Log_debug(format("Final score: %lu", score));
+		return schedule;
+	}
+
+	std::vector<int> __makeAverageSchedule(int D, int K) {
+		std::vector<int> schedule;
+		std::vector<UnorderedSetofEdge> dropEdgesForEachDay(D);
+		int day = 1;
+
+		for(int i = 0; i < _M; i++) {
+			schedule.emplace_back(day);
+			dropEdgesForEachDay[day-1].emplace(_originalEdges[i]);
+			day++;
+			if(day > D) {
+				day = 1;
+			}
+		}
+
+		uint64_t score = __calcScore(D, dropEdgesForEachDay);
+		Log_debug(format("Final score: %lu", score));
+		return schedule;
 	}
 
 	std::vector<int> __makeFastestSchedule(int D, int K) {
@@ -389,7 +549,7 @@ public:
 		for(int i = 0; i < _M; i++) {
 			int u, v, w;
 			std::cin >> u >> v >> w;
-			edges.emplace_back(u, v, w);
+			edges.emplace_back(i, u, v, w);
 		}
 
 		// Coordinate
@@ -417,6 +577,14 @@ public:
 		}
 		std::cout << std::endl;
 
+		// Debug info
+		std::vector<int> histogram(_D);
+		for(int day : schedule) {
+			histogram[day-1]++;
+		}
+		for(size_t i = 0; i < histogram.size(); i++) {
+			Log_info(format("day%2d: %3d edges", i, histogram[i]));
+		}
 		Log_info(format("Elapsed Time: %lu[ms]", elapsedTimeMillisec));
 	}
 
@@ -436,6 +604,13 @@ int main() {
 	main.readInput();
 	main.run();
 
+	Log_debug("[sizeof]");
+	Log_debug(format("Clock:             %u", sizeof(Clock)));
+	Log_debug(format("Edge:              %u", sizeof(Edge)));
+	Log_debug(format("PriorityQueueItem: %u", sizeof(PriorityQueueItem)));
+	Log_debug(format("PriorityQueue:     %u", sizeof(PriorityQueue)));
+	Log_debug(format("Graph:             %u", sizeof(Graph)));
+	Log_debug(format("Main:              %u", sizeof(Main)));
 	return 0;
 }
 
