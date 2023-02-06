@@ -183,6 +183,24 @@ public:
 		_totalDistance = temp * 2;
 	}
 
+	void initializeForJustCheckingUnreachableVertex(const std::vector<std::vector<Edge>>& edgesOnVertex, bool& hasUnreachableVertex) {
+		const size_t N = edgesOnVertex.size();
+
+		_distanceMatrix.resize(1);
+		_distanceMatrix[0].resize(N, UNREACHABLE_DISTANCE);
+		_distanceMatrix[0][0] = 0;
+
+		__initializeDistanceMatrix(0, edgesOnVertex);
+
+		hasUnreachableVertex = false;
+		for(size_t i = 0; i < N; i++) {
+			if(_distanceMatrix[0][i] == UNREACHABLE_DISTANCE) {
+				hasUnreachableVertex = true;
+				break;
+			}
+		}
+	}
+
 	uint64_t getTotalDistance() { return _totalDistance; }
 
 	std::vector<int> getVerticesInMaxDistanceAscendingOrder() const {
@@ -311,7 +329,7 @@ public:
 			_vertices.emplace(edge.u());
 			_vertices.emplace(edge.v());
 		}
-		__initializeEdgesOnVertex();
+		__initializeEdgesOnVertex(_vertices.size(), _edges, _edgesOnVertex);
 		_distanceMatrix.initialize(_edgesOnVertex);
 	}
 	Graph(const Graph& graph, const UnorderedSetofEdge& edgesToDrop) :
@@ -324,7 +342,7 @@ public:
 			_edges.erase(edge);
 		}
 
-		__initializeEdgesOnVertex();
+		__initializeEdgesOnVertex(_vertices.size(), _edges, _edgesOnVertex);
 		_distanceMatrix.initialize(_edgesOnVertex);
 	}
 
@@ -340,15 +358,23 @@ private:
 
 	DistanceMatrix _distanceMatrix;
 
-	void __initializeEdgesOnVertex() {
-		_edgesOnVertex.resize(_vertices.size());
-		for(const Edge& edge : _edges) {
+	static void __initializeEdgesOnVertex(size_t numofVertices, const UnorderedSetofEdge& edges, std::vector<std::vector<Edge>>& edgesOnVertex) {
+		edgesOnVertex.resize(numofVertices);
+		for(const Edge& edge : edges) {
 			uint16_t u = edge.u();
 			uint16_t v = edge.v();
 
-			_edgesOnVertex[u].emplace_back(edge);
-			_edgesOnVertex[v].emplace_back(edge.getReversedEdge());
+			edgesOnVertex[u].emplace_back(edge);
+			edgesOnVertex[v].emplace_back(edge.getReversedEdge());
 		}
+		//_edgesOnVertex.resize(_vertices.size());
+		//for(const Edge& edge : _edges) {
+		//	uint16_t u = edge.u();
+		//	uint16_t v = edge.v();
+
+		//	_edgesOnVertex[u].emplace_back(edge);
+		//	_edgesOnVertex[v].emplace_back(edge.getReversedEdge());
+		//}
 	}
 
 	uint64_t __calcScore(int D, const std::vector<UnorderedSetofEdge>& dropEdgesForEachDay) {
@@ -365,8 +391,8 @@ private:
 			double fk = diff / (N * (N-1.0));
 			score += fk;
 			//Log_debug(format("diff:                 %18lu", diff));
-			//Log_debug(format("fk:                               %10.3lf", fk));
-			Log_debug(format("Score:                            %10.3lf", score));
+			Log_debug(format("fk:                               %10.3lf", fk));
+			//Log_debug(format("Score:                            %10.3lf", score));
 		}
 		score *= 1000.0 / D;
 		return (uint64_t)std::round(score);
@@ -450,7 +476,7 @@ private:
 				dropEdgesForEachDay[bestIndex].emplace(edge);
 				alreadyDropped.emplace(edge);
 			}
-			if(clock.getElapsedTimeMillisec() > 5750) {
+			if(clock.getElapsedTimeMillisec() > 4000) {
 				Log_debug("break!");
 				break;
 			}
@@ -494,17 +520,18 @@ private:
 
 		size_t numofPartitions;
 		if(N < 600) {
-			numofPartitions = 4;
+			numofPartitions = 5;
 		} else if(N < 700) {
-			numofPartitions = 5;
-		} else if(N < 800) {
-			numofPartitions = 5;
-		} else if(N < 900) {
 			numofPartitions = 6;
-		} else {
+		} else if(N < 800) {
 			numofPartitions = 7;
+		} else if(N < 900) {
+			numofPartitions = 8;
+		} else {
+			numofPartitions = 9;
 		}
 		std::unordered_set<size_t> targetPartition = {0};
+		//std::unordered_set<size_t> targetPartition = {};
 		for(size_t i = 0; i < numofPartitions; i++) {
 			if(targetPartition.find(i) == targetPartition.end()) {
 				continue;
@@ -539,12 +566,27 @@ private:
 				}
 
 				// prevent all edges at one vertex from going to the same day
-				size_t counter = 0;
-				for(const Edge& edge : _edgesOnVertex[vertex]) {
-					counter += dropEdgesForEachDay[day-1].count(edge);
-				}
-				if(counter == _edgesOnVertex[vertex].size() - 1) {
-					day = incrementDay(day);
+				for(size_t num = 0; num < D; num++) {
+					if(dropEdgesForEachDay[day-1].size() == K) {
+						day = incrementDay(day);
+						continue;
+					}
+
+					UnorderedSetofEdge edges = _edges;
+					for(const Edge& e : dropEdgesForEachDay[day-1]) {
+						edges.erase(e);
+					}
+					edges.erase(edge);
+					std::vector<std::vector<Edge>> edgesOnVertex;
+					__initializeEdgesOnVertex(N, edges, edgesOnVertex);
+					bool hasUnreachableVertex;
+					DistanceMatrix dm;
+					dm.initializeForJustCheckingUnreachableVertex(edgesOnVertex, hasUnreachableVertex);
+					if(hasUnreachableVertex) {
+						day = incrementDay(day);
+					} else {
+						break;
+					}
 				}
 
 				while(dropEdgesForEachDay[day-1].size() == K) {
