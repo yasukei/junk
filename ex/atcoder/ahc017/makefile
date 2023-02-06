@@ -1,8 +1,8 @@
 
 TARGET=main
 
-#CXXFLAGS=-g -O0 -Wall
-#CXXFLAGS=-pg -O3 -Wall
+CXXFLAGS=-g -O0 -Wall
+CXXFLAGS=-pg -O3 -Wall
 CXXFLAGS=-O3 -Wall
 
 all: $(TARGET)
