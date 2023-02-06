@@ -163,15 +163,10 @@ public:
 		const size_t N = edgesOnVertex.size();
 
 		_distanceMatrix.resize(N);
-		for(auto& row : _distanceMatrix) {
-			row.resize(N, UNREACHABLE_DISTANCE);
-		}
 		for(size_t i = 0; i < N; i++) {
+			_distanceMatrix[i].resize(N, UNREACHABLE_DISTANCE);
 			_distanceMatrix[i][i] = 0;
-		}
-
-		for(uint16_t vertex = 0; vertex < N; vertex++) {
-			__initializeDistanceMatrix(vertex, edgesOnVertex);
+			__initializeDistanceMatrix(i, edgesOnVertex);
 		}
 
 		uint64_t temp = 0;
@@ -367,14 +362,6 @@ private:
 			edgesOnVertex[u].emplace_back(edge);
 			edgesOnVertex[v].emplace_back(edge.getReversedEdge());
 		}
-		//_edgesOnVertex.resize(_vertices.size());
-		//for(const Edge& edge : _edges) {
-		//	uint16_t u = edge.u();
-		//	uint16_t v = edge.v();
-
-		//	_edgesOnVertex[u].emplace_back(edge);
-		//	_edgesOnVertex[v].emplace_back(edge.getReversedEdge());
-		//}
 	}
 
 	uint64_t __calcScore(int D, const std::vector<UnorderedSetofEdge>& dropEdgesForEachDay) {
@@ -482,6 +469,9 @@ private:
 			}
 		}
 		Log_debug(format("current elapsed time: %llu[ms]", clock.getElapsedTimeMillisec()));
+#ifdef LOG_ENABLED
+		//printf("%lu\n", clock.getElapsedTimeMillisec());
+#endif // LOG_ENABLED
 
 		return dropEdgesForEachDay;
 	}
@@ -518,20 +508,53 @@ private:
 		std::vector<UnorderedSetofEdge> dropEdgesForEachDay(D);
 		UnorderedSetofEdge alreadyDropped;
 
-		size_t numofPartitions;
-		if(N < 600) {
-			numofPartitions = 5;
-		} else if(N < 700) {
-			numofPartitions = 6;
-		} else if(N < 800) {
-			numofPartitions = 7;
-		} else if(N < 900) {
-			numofPartitions = 8;
-		} else {
+		size_t numofPartitions = 10;
+		if(N > 900) {
 			numofPartitions = 9;
+		} else if(N > 800) {
+			if(D > 20) {
+				numofPartitions = 8;
+			} else {
+				numofPartitions = 7;
+			}
+		} else if(N > 700) {
+			if(D > 10) {
+				numofPartitions = 7;
+			} else {
+				numofPartitions = 6;
+			}
+		} else if(N > 600) {
+			if(D > 10) {
+				numofPartitions = 6;
+			} else {
+				numofPartitions = 4;
+			}
+		} else if(N > 500) {
+			if(D > 10) {
+				numofPartitions = 5;
+			} else {
+				numofPartitions = 4;
+			}
+		} else {
+			if(D > 10) {
+				numofPartitions = 4;
+			} else {
+				numofPartitions = 3;
+			}
 		}
+		//if(N < 600) {
+		//	numofPartitions = 5;
+		//} else if(N < 700) {
+		//	numofPartitions = 6;
+		//} else if(N < 800) {
+		//	numofPartitions = 7;
+		//} else if(N < 900) {
+		//	numofPartitions = 8;
+		//} else {
+		//	numofPartitions = 9;
+		//}
+
 		std::unordered_set<size_t> targetPartition = {0};
-		//std::unordered_set<size_t> targetPartition = {};
 		for(size_t i = 0; i < numofPartitions; i++) {
 			if(targetPartition.find(i) == targetPartition.end()) {
 				continue;
@@ -602,6 +625,7 @@ private:
 #ifdef LOG_ENABLED
 		uint64_t score = __calcScore(D, dropEdgesForEachDay);
 		Log_debug(format("Final score: %lu", score));
+		//printf("%lu\n", score);
 #endif // LOG_ENABLED
 		return schedule;
 	}
