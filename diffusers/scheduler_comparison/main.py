@@ -50,13 +50,13 @@ schedulers = [
         DDIMScheduler.from_config(pipeline.scheduler.config),
         EulerDiscreteScheduler.from_config(pipeline.scheduler.config),
         DEISMultistepScheduler.from_config(pipeline.scheduler.config),
-        DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config),     # looks best to me
+        DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config),     # looks good performance
         KDPM2DiscreteScheduler.from_config(pipeline.scheduler.config),
         LMSDiscreteScheduler.from_config(pipeline.scheduler.config),
-        EulerAncestralDiscreteScheduler.from_config(pipeline.scheduler.config),
+        EulerAncestralDiscreteScheduler.from_config(pipeline.scheduler.config), # looks good performance
         KDPM2AncestralDiscreteScheduler.from_config(pipeline.scheduler.config),
         HeunDiscreteScheduler.from_config(pipeline.scheduler.config),
-        UniPCMultistepScheduler.from_config(pipeline.scheduler.config),
+        UniPCMultistepScheduler.from_config(pipeline.scheduler.config),         # looks good performance
         DPMSolverSinglestepScheduler.from_config(pipeline.scheduler.config),
         ]
 
