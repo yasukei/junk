@@ -2,33 +2,38 @@ import os
 import shutil
 from pathlib import Path
 
+from PIL.PngImagePlugin import PngImageFile
+
 def main():
     # Variables
-    dir_path = './'
-    outputdir_path = 'output/'
-    target_extension = '.png'
+    src_dir = './'
+    src_extension = '.png'
+    dst_dir = 'output/'
+    dst_extension = '.jpg'
     index = 1
 
     # Get a list of files
-    files_and_dirs = os.listdir(dir_path)
-    files = [elem for elem in files_and_dirs if os.path.isfile(os.path.join(dir_path, elem))]
+    files_and_dirs = os.listdir(src_dir)
+    files = [elem for elem in files_and_dirs if os.path.isfile(os.path.join(src_dir, elem))]
     files.sort()
 
     # Make output dir if not exist
-    Path(outputdir_path).mkdir(parents=True, exist_ok=True)
+    Path(dst_dir).mkdir(parents=True, exist_ok=True)
 
     # Renaming
-    src_files = list()
-    dst_files = list()
     for file in files:
         name, extension = os.path.splitext(file)
-        if extension != target_extension:
+        if extension != src_extension:
             continue
 
         src = file
-        dst = f'{outputdir_path}/{index:03}{extension}'
+        dst = f'{dst_dir}/{index:03}{dst_extension}'
+        
         print(f'copying "{src}" to "{dst}"')
-        shutil.copyfile(src, dst)
+        image = PngImageFile(src)
+        image = image.convert('RGB')
+        image.save(dst)
+        #shutil.copyfile(src, dst)
  
         index += 1
     print('Done.')
